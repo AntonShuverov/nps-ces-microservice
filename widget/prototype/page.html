@@ -96,17 +96,17 @@
         <div class="events" id="events">
           <button class="event" id="ev-loan_repaid" data-step="loan_repaid" aria-pressed="true">
             <b>Займ погашен</b>
-            <span>NPS 1–10, затем CES про оплату. 2 шага, как в макете</span>
+            <span>NPS 1–10, затем CES про оплату. 2 шага, как в макете. Единственный опрос на старте</span>
             <code>loan_repaid</code>
           </button>
           <button class="event" id="ev-loan_issued" data-step="loan_issued" aria-pressed="false">
             <b>Займ выдан</b>
-            <span>CES смайликами. 1 шаг</span>
+            <span>CES смайликами. 1 шаг. На старте выключен</span>
             <code>loan_issued</code>
           </button>
           <button class="event" id="ev-application_submitted" data-step="application_submitted" aria-pressed="false">
             <b>Заявка отправлена</b>
-            <span>CES смайликами. 1 шаг</span>
+            <span>CES смайликами. 1 шаг. На старте выключен</span>
             <code>application_submitted</code>
           </button>
         </div>
@@ -118,7 +118,8 @@
           <li><b>Кнопка «Отправить»</b> появляется только после выбора оценки.</li>
           <li><b>NPS 6 и ниже</b> — появляется поле «Посоветуйте, что можно сделать лучше». 7 и выше — поля нет.</li>
           <li><b>CES 😭 😒 😐</b> (1–3) — появляется поле про трудности. ☺️ 😍 — поля нет.</li>
-          <li><b>Крестик</b> на любом шаге закрывает опрос, в журнале видно, на каком шаге.</li>
+          <li><b>Опрос появляется через 2 секунды</b> после события, экран «Спасибо» закрывается сам через 4 секунды.</li>
+          <li><b>Крестик, Esc или клик мимо окна</b> закрывают опрос, в журнале видно, на каком шаге.</li>
           <li><b>Мобильный вид</b> открывает опрос нижней шторкой.</li>
         </ul>
       </section>

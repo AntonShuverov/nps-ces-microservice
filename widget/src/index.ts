@@ -112,8 +112,8 @@ function buildConfig(options: SurveyWidgetOptions): Config {
     delayMs: options.delayMs ?? 2000,
     requestTimeoutMs: options.requestTimeoutMs ?? 1500,
     isOtherModalOpen: options.isOtherModalOpen ?? defaultIsOtherModalOpen,
-    closeOnEsc: options.closeOnEsc ?? false,
-    closeOnOutsideClick: options.closeOnOutsideClick ?? false,
+    closeOnEsc: options.closeOnEsc ?? true,
+    closeOnOutsideClick: options.closeOnOutsideClick ?? true,
     thankYouAutoCloseMs: options.thankYouAutoCloseMs ?? 4000,
     texts: { ...DEFAULT_TEXTS, ...options.texts },
   };

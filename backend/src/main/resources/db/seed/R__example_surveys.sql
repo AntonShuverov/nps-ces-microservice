@@ -10,9 +10,11 @@ WHERE code IN ('ces_after_application_submitted', 'ces_nps_after_loan_issued', '
   AND status <> 'ARCHIVED';
 
 INSERT INTO survey (code, title, status, priority, min_interval_days) VALUES
+    -- На старте опрос только на оплате (погашении займа)
     ('nps_ces_loan_repaid',        'Пройдите опрос', 'ACTIVE', 20, 1),
-    ('ces_loan_issued',            'Пройдите опрос', 'ACTIVE', 10, 1),
-    ('ces_application_submitted',  'Пройдите опрос', 'ACTIVE', 10, 1),
+    -- Выключены до решения продукта, включаются сменой статуса на ACTIVE
+    ('ces_loan_issued',            'Пройдите опрос', 'DRAFT',  10, 1),
+    ('ces_application_submitted',  'Пройдите опрос', 'DRAFT',  10, 1),
     -- На будущее: NPS + CES на выдаче займа. Черновик, клиентам не показывается.
     -- Как включить: docs/survey-service.md, п. 12
     ('nps_ces_loan_issued_draft',  'Пройдите опрос', 'DRAFT',  20, 1)

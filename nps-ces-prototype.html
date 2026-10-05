@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Прототип опросов NPS CES</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+  /* Рабочий стол прототипа: слева сценарии и журнал запросов, справа экран сайта с опросом */
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --line: #dbe3ea;
+    --fg: #111e2b;
+    --muted: #5d7489;
+    --accent: #166cb7;
+    --accent-soft: #e3eef8;
+    --brand: #ff6016;
+    --code-bg: #f4f7fa;
+    --ok: #1d7a3e;
+    --font-ui: "Golos Text", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --font-code: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e151c; --panel: #16212b; --line: #26343f; --fg: #e8eef3; --muted: #93a7b8;
+      --accent: #5aa6ea; --accent-soft: #1b3348; --brand: #ff7a3d; --code-bg: #101920; --ok: #5cc985;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e151c; --panel: #16212b; --line: #26343f; --fg: #e8eef3; --muted: #93a7b8;
+    --accent: #5aa6ea; --accent-soft: #1b3348; --brand: #ff7a3d; --code-bg: #101920; --ok: #5cc985;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.45; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 40px; display: grid; gap: 20px; }
+  header h1 { margin: 0; font-size: 24px; font-weight: 600; text-wrap: balance; }
+  header p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .side { display: grid; gap: 16px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+  .panel h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .events { display: grid; gap: 8px; }
+  .event {
+    display: grid; gap: 2px; width: 100%; padding: 12px 14px; text-align: left;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg);
+    font: inherit; cursor: pointer;
+  }
+  .event:hover { border-color: var(--accent); }
+  .event[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .event b { font-weight: 600; }
+  .event span { font-size: 13px; color: var(--muted); }
+  .event code { font-family: var(--font-code); font-size: 12px; color: var(--accent); }
+  .hints { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+  .hints b { color: var(--fg); font-weight: 500; }
+  .stage { display: grid; gap: 12px; min-width: 0; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .seg { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .seg button { padding: 7px 14px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .replay { padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg); font: inherit; font-size: 14px; cursor: pointer; }
+  .replay:hover { border-color: var(--accent); }
+  .device { display: flex; justify-content: center; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow-x: auto; }
+  .device iframe { display: block; width: 100%; height: 640px; border: 0; border-radius: 10px; background: #f2f5f8; }
+  .device.mobile iframe { width: 360px; max-width: 100%; height: 720px; border: 8px solid #1d2731; border-radius: 34px; }
+  .log { display: grid; gap: 8px; max-height: 420px; overflow-y: auto; }
+  .log:empty::before { content: "Здесь появятся запросы виджета к сервису: получение опроса, показ, ответы, закрытие."; color: var(--muted); font-size: 14px; }
+  .req { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--code-bg); min-width: 0; }
+  .req-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-family: var(--font-code); font-size: 12px; }
+  .req-head .m { font-weight: 600; color: var(--accent); }
+  .req-head .s { margin-left: auto; color: var(--ok); }
+  .req-note { margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .req pre { margin: 6px 0 0; font-family: var(--font-code); font-size: 12px; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .row h2 { margin: 0; }
+  .clear { border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { margin: 0; font-size: 13px; color: var(--muted); }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Прототип опросов NPS CES</h1>
+    <p>Настоящий виджет из репозитория с теми же опросами, что заведены в сервисе. Выберите событие на сайте, пройдите опрос и посмотрите, что уходит на сервер. Сервер здесь заменен заглушкой, данные никуда не отправляются.</p>
+  </header>
+
+  <div class="layout">
+    <div class="side">
+      <section class="panel">
+        <h2>Событие на сайте</h2>
+        <div class="events" id="events">
+          <button class="event" id="ev-loan_repaid" data-step="loan_repaid" aria-pressed="true">
+            <b>Займ погашен</b>
+            <span>NPS 1–10, затем CES про оплату. 2 шага, как в макете. Единственный опрос на старте</span>
+            <code>loan_repaid</code>
+          </button>
+          <button class="event" id="ev-loan_issued" data-step="loan_issued" aria-pressed="false">
+            <b>Займ выдан</b>
+            <span>CES смайликами. 1 шаг. На старте выключен</span>
+            <code>loan_issued</code>
+          </button>
+          <button class="event" id="ev-application_submitted" data-step="application_submitted" aria-pressed="false">
+            <b>Заявка отправлена</b>
+            <span>CES смайликами. 1 шаг. На старте выключен</span>
+            <code>application_submitted</code>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Что проверить</h2>
+        <ul class="hints">
+          <li><b>Кнопка «Отправить»</b> появляется только после выбора оценки.</li>
+          <li><b>NPS 6 и ниже</b> — появляется поле «Посоветуйте, что можно сделать лучше». 7 и выше — поля нет.</li>
+          <li><b>CES 😭 😒 😐</b> (1–3) — появляется поле про трудности. ☺️ 😍 — поля нет.</li>
+          <li><b>Опрос появляется через 2 секунды</b> после события, экран «Спасибо» закрывается сам через 4 секунды.</li>
+          <li><b>Крестик, Esc или клик мимо окна</b> закрывают опрос, в журнале видно, на каком шаге.</li>
+          <li><b>Мобильный вид</b> открывает опрос нижней шторкой.</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="stage">
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Устройство">
+          <button id="dev-desktop" data-device="desktop" aria-pressed="true">Десктоп</button>
+          <button id="dev-mobile" data-device="mobile" aria-pressed="false">Мобильный</button>
+        </div>
+        <button class="replay" id="replay">Показать опрос заново</button>
+      </div>
+      <div class="device" id="device">
+        <iframe id="site" title="Экран сайта с опросом" srcdoc="&lt;!doctype html&gt;
+&lt;!-- Экран сайта внутри прототипа. Примеры опросов повторяют backend/src/main/resources/db/seed/R__example_surveys.sql --&gt;
+&lt;html lang=&quot;ru&quot;&gt;
+&lt;head&gt;
+&lt;meta charset=&quot;utf-8&quot;&gt;
+&lt;meta name=&quot;viewport&quot; content=&quot;width=device-width, initial-scale=1&quot;&gt;
+&lt;link rel=&quot;stylesheet&quot; href=&quot;https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500&amp;display=swap&quot;&gt;
+&lt;style&gt;
+  :root { color-scheme: light; }
+  body { margin: 0; min-height: 100vh; background: #f2f5f8; font-family: &quot;Mazzard M&quot;, Montserrat, -apple-system, &quot;Segoe UI&quot;, Roboto, Arial, sans-serif; color: #111e2b; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 20px; background: #fff; border-bottom: 1px solid #e3e9ef; font-size: 14px; }
+  .bar b { font-weight: 500; }
+  .bar span { color: #657f95; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px; display: grid; gap: 16px; }
+  .card { background: #fff; border-radius: 16px; padding: 24px; }
+  .status { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #e6f4ea; color: #1d6b34; font-size: 13px; }
+  h1 { margin: 12px 0 6px; font-size: 24px; font-weight: 500; }
+  p { margin: 0; color: #3c546b; line-height: 1.5; }
+  .rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px; }
+  .rows div { padding: 12px; border-radius: 10px; background: #f2f5f8; font-size: 13px; color: #657f95; }
+  .rows b { display: block; margin-top: 4px; font-size: 16px; font-weight: 500; color: #111e2b; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div class=&quot;bar&quot;&gt;&lt;b&gt;Личный кабинет&lt;/b&gt;&lt;span&gt;Константин К.&lt;/span&gt;&lt;/div&gt;
+&lt;main&gt;
+  &lt;div class=&quot;card&quot;&gt;
+    &lt;span class=&quot;status&quot; id=&quot;status&quot;&gt;Займ погашен&lt;/span&gt;
+    &lt;h1 id=&quot;headline&quot;&gt;Спасибо, займ закрыт&lt;/h1&gt;
+    &lt;p id=&quot;lead&quot;&gt;Платеж получен, задолженности нет.&lt;/p&gt;
+    &lt;div class=&quot;rows&quot;&gt;
+      &lt;div&gt;Сумма&lt;b&gt;10 000 ₽&lt;/b&gt;&lt;/div&gt;
+      &lt;div&gt;Вернуть&lt;b&gt;11 200 ₽&lt;/b&gt;&lt;/div&gt;
+      &lt;div&gt;Дата возврата&lt;b&gt;30.11.2026&lt;/b&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/main&gt;
+&lt;script&gt;
+// Заглушка сервиса опросов: те же опросы, что в backend/src/main/resources/db/seed/R__example_surveys.sql
+const COMMENT = (code, text, q, max) =&gt; ({ id: 0, code, type: 'TEXT', text, required: false,
+  settings: { placeholder: 'Ваш комментарий здесь', maxLength: 1000, showIf: { question: q, op: 'lte', value: max } } });
+const CES = (text) =&gt; ({ id: 0, code: 'ces', type: 'SCALE', text, required: true, settings: { min: 1, max: 5, view: 'emoji' } });
+const SURVEYS = {
+  loan_repaid: { surveyId: 1, code: 'nps_ces_loan_repaid', title: 'Пройдите опрос', steps: [
+    { step: 1, questions: [
+      { id: 0, code: 'nps', type: 'SCALE', text: 'Насколько вероятно, что вы порекомендуете наш сервис?', required: true, settings: { min: 1, max: 10 } },
+      COMMENT('nps_comment', 'Посоветуйте, что можно сделать лучше', 'nps', 6) ] },
+    { step: 2, questions: [ CES('Насколько легко оплатить займ в Личном кабинете?'),
+      COMMENT('ces_comment', 'С какими трудностями вы столкнулись при оплате?', 'ces', 3) ] } ] },
+  loan_issued: { surveyId: 3, code: 'ces_loan_issued', title: 'Пройдите опрос', steps: [
+    { step: 1, questions: [ CES('Насколько легко было получить займ?'),
+      COMMENT('ces_comment', 'С какими трудностями вы столкнулись?', 'ces', 3) ] } ] },
+  application_submitted: { surveyId: 2, code: 'ces_application_submitted', title: 'Пройдите опрос', steps: [
+    { step: 1, questions: [ CES('Насколько легко было оформить заявку?'),
+      COMMENT('ces_comment', 'С какими трудностями вы столкнулись?', 'ces', 3) ] } ] },
+};
+let nextId = 10;
+Object.values(SURVEYS).forEach(s =&gt; s.steps.forEach(st =&gt; st.questions.forEach(q =&gt; { q.id = nextId++; })));
+const impressions = {};
+let impressionSeq = 1;
+const report = (entry) =&gt; parent.postMessage({ source: 'survey-preview', ...entry }, '*');
+const json = (body, status = 200) =&gt; new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+window.fetch = async (url, init = {}) =&gt; {
+  const method = init.method || 'GET';
+  const body = init.body ? JSON.parse(init.body) : undefined;
+  const path = String(url).replace('/api/v1/surveys', '');
+  let response;
+  if (path.startsWith('/active')) {
+    const step = new URLSearchParams(path.split('?')[1]).get('flowStep');
+    response = SURVEYS[step] ? json(SURVEYS[step]) : new Response(null, { status: 204 });
+  } else if (path === '/impressions') {
+    const id = 'demo-' + impressionSeq++;
+    impressions[id] = Object.values(SURVEYS).find(s =&gt; s.surveyId === body.surveyId);
+    response = json({ impressionId: id }, 201);
+  } else if (path.includes('/steps/')) {
+    const [, id, step] = path.match(/impressions\/([^/]+)\/steps\/(\d+)/);
+    const last = impressions[id].steps.length;
+    const completed = Number(step) === last;
+    response = json({ status: completed ? 'COMPLETED' : 'SHOWN', lastStep: Number(step), completed });
+  } else if (path.endsWith('/close')) {
+    response = new Response(null, { status: 204 });
+  } else {
+    response = new Response(null, { status: 404 });
+  }
+  const labels = {};
+  Object.values(SURVEYS).forEach(s =&gt; s.steps.forEach(st =&gt; st.questions.forEach(q =&gt; { labels[q.id] = q.code; })));
+  report({ method, path, body, status: response.status, labels });
+  await new Promise(r =&gt; setTimeout(r, 150));
+  return response;
+};
+
+const SCREENS = {
+  loan_issued: ['Займ выдан', 'Деньги отправлены на карту', 'Обычно деньги приходят в течение нескольких минут.'],
+  application_submitted: ['Заявка отправлена', 'Заявка на рассмотрении', 'Решение придет в СМС и появится в личном кабинете.'],
+  loan_repaid: ['Займ погашен', 'Спасибо, займ закрыт', 'Платеж получен, задолженности нет.'],
+};
+window.addEventListener('message', (event) =&gt; {
+  if (!event.data || event.data.source !== 'survey-preview-control') return;
+  const step = event.data.flowStep;
+  const [status, headline, lead] = SCREENS[step];
+  document.getElementById('status').textContent = status;
+  document.getElementById('headline').textContent = headline;
+  document.getElementById('lead').textContent = lead;
+  document.querySelectorAll('[data-survey-widget]').forEach(n =&gt; n.remove());
+  SurveyWidget.resetSurveyVisit();
+  SurveyWidget.showSurvey(step);
+});
+&lt;/script&gt;
+&lt;script&gt;var SurveyWidget=(function(e){Object.defineProperty(e,Symbol.toStringTag,{value:`Module`});var t=class extends Error{constructor(e){super(`Survey API error: ${e}`),this.status=e}},n=class{constructor(e,t){this.baseUrl=e,this.headers=t}async getActive(e,t){let n=new AbortController,r=setTimeout(()=&gt;n.abort(),t);try{let t=await this.request(`/active?flowStep=${encodeURIComponent(e)}`,{method:`GET`,signal:n.signal});return t.status===204?null:await t.json()}finally{clearTimeout(r)}}async createImpression(e,t,n){return(await(await this.request(`/impressions`,{method:`POST`,body:JSON.stringify({surveyId:e,flowStep:t,eventObjectId:n})})).json()).impressionId}async saveStep(e,t,n){return await(await this.request(`/impressions/${encodeURIComponent(e)}/steps/${t}`,{method:`PUT`,body:JSON.stringify({answers:[...n].map(([e,t])=&gt;({questionId:e,value:t}))})})).json()}async close(e,t){await this.request(`/impressions/${encodeURIComponent(e)}/close`,{method:`POST`,body:JSON.stringify({step:t}),keepalive:!0})}async request(e,n){let r=await fetch(`${this.baseUrl}${e}`,{...n,credentials:`include`,headers:{&quot;Content-Type&quot;:`application/json`,...this.headers()}});if(!r.ok)throw new t(r.status);return r}},r=[`😭`,`😒`,`😐`,`☺️`,`😍`];function i(e,t={},...n){let r=document.createElement(e);for(let[e,n]of Object.entries(t))r.setAttribute(e,n);return r.append(...n),r}var a=0,o=e=&gt;`${e}-${++a}`;function s(e,t){switch(e.type){case`SCALE`:return e.settings.view===`emoji`?d(e,t):u(e,t);case`STARS`:return f(e,t);case`TEXT`:return p(e,t);case`SINGLE_CHOICE`:return m(e,t);case`MULTIPLE_CHOICE`:return h(e,t)}}function c(e,t){if(!e)return!0;let n=t.get(e.question);if(typeof n!=`number`)return!1;let r=e.value;switch(e.op){case`in`:return Array.isArray(r)&amp;&amp;r.includes(n);case`eq`:return n===r;case`neq`:return n!==r;case`gt`:return n&gt;r;case`gte`:return n&gt;=r;case`lt`:return n&lt;r;case`lte`:return n&lt;=r;default:return!1}}function l(e){let t=o(`sw-q`),n=i(`div`,{class:`sw-question`,role:`group`,&quot;aria-labelledby&quot;:t,&quot;data-code&quot;:e.code});return n.append(i(`div`,{class:`sw-question-text`,id:t},e.text)),{root:n,labelId:t}}function u(e,t){let n=e.settings.min??0,r=e.settings.max??10,{root:a,labelId:o}=l(e),s,c=i(`div`,{class:`sw-scale`,role:`radiogroup`,&quot;aria-labelledby&quot;:o}),u=[];for(let e=n;e&lt;=r;e++){let r=i(`button`,{type:`button`,role:`radio`,&quot;aria-checked&quot;:`false`,class:`sw-scale-item`},i(`span`,{class:`sw-radio`,&quot;aria-hidden&quot;:`true`}),i(`span`,{class:`sw-scale-number`},String(e)));r.addEventListener(`click`,()=&gt;{s=e,u.forEach((t,r)=&gt;t.setAttribute(`aria-checked`,String(n+r===e))),t()}),u.push(r),c.append(r)}return a.append(c),(e.settings.minLabel||e.settings.maxLabel)&amp;&amp;a.append(i(`div`,{class:`sw-scale-labels`},i(`span`,{},e.settings.minLabel??``),i(`span`,{},e.settings.maxLabel??``))),{question:e,element:a,getValue:()=&gt;s}}function d(e,t){let n=e.settings.min??1,a=e.settings.max??5,o=e.settings.icons??r,{root:s,labelId:c}=l(e),u,d=i(`div`,{class:`sw-emoji-scale`,role:`radiogroup`,&quot;aria-labelledby&quot;:c}),f=[];for(let e=n;e&lt;=a;e++){let r=i(`button`,{type:`button`,role:`radio`,&quot;aria-checked&quot;:`false`,&quot;aria-label&quot;:`${e} из ${a}`,class:`sw-emoji`},o[e-n]??String(e));r.addEventListener(`click`,()=&gt;{u=e,d.classList.add(`sw-has-value`),f.forEach((t,r)=&gt;t.setAttribute(`aria-checked`,String(n+r===e))),t()}),f.push(r),d.append(r)}return s.append(d),{question:e,element:s,getValue:()=&gt;u}}function f(e,t){let n=e.settings.count??5,{root:r,labelId:a}=l(e),o,s=i(`div`,{class:`sw-stars`,role:`radiogroup`,&quot;aria-labelledby&quot;:a}),c=[];for(let e=1;e&lt;=n;e++){let n=i(`button`,{type:`button`,role:`radio`,&quot;aria-checked&quot;:`false`,&quot;aria-label&quot;:String(e),class:`sw-star`},`★`);n.addEventListener(`click`,()=&gt;{o=e,c.forEach((t,n)=&gt;{t.setAttribute(`aria-checked`,String(n+1===e)),t.classList.toggle(`sw-star-on`,n&lt;e)}),t()}),c.push(n),s.append(n)}return r.append(s),{question:e,element:r,getValue:()=&gt;o}}function p(e,t){let n=e.settings.maxLength??1e3,{root:r,labelId:a}=l(e),o=i(`textarea`,{class:`sw-textarea`,rows:`3`,maxlength:String(n),&quot;aria-labelledby&quot;:a,placeholder:e.settings.placeholder??``});return o.addEventListener(`input`,t),o.addEventListener(`focus`,()=&gt;{setTimeout(()=&gt;r.closest(`.sw-popup`)?.querySelector(`.sw-submit`)?.scrollIntoView?.({block:`nearest`}),300)}),r.append(o),{question:e,element:r,getValue:()=&gt;o.value.trim()===``?void 0:o.value}}function m(e,t){let{root:n}=l(e),r=o(`sw-single`),a;for(let o of e.settings.options??[]){let e=i(`input`,{type:`radio`,name:r,value:o.code});e.addEventListener(`change`,()=&gt;{a=o.code,t()}),n.append(i(`label`,{class:`sw-option`},e,i(`span`,{},o.label)))}return{question:e,element:n,getValue:()=&gt;a}}function h(e,t){let{root:n}=l(e),r=e.settings.maxSelected??1/0,a=[];for(let o of e.settings.options??[]){let e=i(`input`,{type:`checkbox`,value:o.code});e.addEventListener(`change`,()=&gt;{let e=a.filter(e=&gt;e.checked).length;a.forEach(t=&gt;{t.disabled=!t.checked&amp;&amp;e&gt;=r}),t()}),a.push(e),n.append(i(`label`,{class:`sw-option`},e,i(`span`,{},o.label)))}return{question:e,element:n,getValue:()=&gt;{let e=a.filter(e=&gt;e.checked).map(e=&gt;e.value);return e.length===0?void 0:e}}}var g=`
+:host { all: initial; }
+* { box-sizing: border-box; }
+
+.sw-overlay {
+  --sw-text: #3c546b;
+  --sw-title: #111e2b;
+  --sw-muted: #8ea3b6;
+  --sw-icon: #657f95;
+  --sw-accent: #166cb7;
+  --sw-button: #ff6016;
+  --sw-field: #ecf3f8;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(17, 30, 43, 0.4);
+  font-family: var(--sw-font, &quot;Mazzard M&quot;, &quot;Mazzard&quot;, -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;, Roboto, Arial, sans-serif);
+  color: var(--sw-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+.sw-handle { display: none; }
+
+.sw-popup {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgba(17, 30, 43, 0.2);
+}
+
+.sw-header {
+  display: grid;
+  grid-template-columns: 30px 1fr 30px;
+  align-items: center;
+  gap: 10px;
+  padding: 20px;
+}
+.sw-progress { font-size: 11px; line-height: 12px; color: var(--sw-muted); }
+.sw-title {
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--sw-title);
+}
+.sw-close {
+  justify-self: end;
+  display: flex;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sw-icon);
+  cursor: pointer;
+}
+
+form { margin: 0; }
+
+.sw-question { padding: 20px 30px; min-width: 0; }
+.sw-question[hidden] { display: none; }
+.sw-question-text {
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 20px;
+  color: var(--sw-text);
+}
+
+/* NPS: радиокнопки с цифрами под ними */
+.sw-scale { display: flex; justify-content: space-between; gap: 4px; }
+.sw-scale-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--sw-text);
+  cursor: pointer;
+}
+.sw-radio {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--sw-text);
+  border-radius: 50%;
+}
+.sw-scale-item[aria-checked=&quot;true&quot;] .sw-radio {
+  border-color: var(--sw-accent);
+  background: radial-gradient(circle, var(--sw-accent) 0 2px, transparent 2.5px);
+}
+.sw-scale-number { font-family: var(--sw-digits-font, &quot;Montserrat&quot;, inherit); font-size: 12px; line-height: 15px; }
+.sw-scale-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--sw-muted); }
+
+/* CES: смайлики, после выбора остальные бледнеют */
+.sw-emoji-scale { display: flex; justify-content: center; gap: 8px; }
+.sw-emoji {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  font-size: 34px;
+  line-height: 40px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.sw-has-value .sw-emoji { opacity: 0.25; }
+.sw-has-value .sw-emoji[aria-checked=&quot;true&quot;] { opacity: 1; }
+
+.sw-stars { display: flex; justify-content: center; gap: 4px; }
+.sw-star { border: 0; background: none; font-size: 32px; color: #d1d5db; cursor: pointer; padding: 0 2px; }
+.sw-star-on { color: #f59e0b; }
+
+.sw-textarea {
+  display: block;
+  width: 100%;
+  min-height: 100px;
+  padding: 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--sw-field);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--sw-title);
+  resize: none;
+}
+.sw-textarea::placeholder { color: var(--sw-icon); }
+
+.sw-scale-item:focus-visible .sw-radio, .sw-emoji:focus-visible, .sw-textarea:focus-visible,
+.sw-submit:focus-visible, .sw-close:focus-visible {
+  outline: 2px solid var(--sw-accent);
+  outline-offset: 2px;
+}
+
+.sw-option { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 15px; cursor: pointer; }
+
+.sw-actions { padding: 20px 30px 30px; }
+.sw-actions[hidden] { display: none; }
+.sw-error { margin: 0 0 12px; text-align: center; font-size: 14px; color: #dc2626; }
+.sw-submit {
+  width: 100%;
+  height: 52px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 24px;
+  background: var(--sw-button);
+  color: #fff;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 16px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.sw-submit:disabled { opacity: 0.6; cursor: wait; }
+
+/* Экран благодарности: текст и кнопка «Закрыть», без заголовка */
+.sw-finished .sw-header { padding-bottom: 0; }
+.sw-thanks-text {
+  margin: 0;
+  padding: 0 30px;
+  text-align: center;
+  font-size: 16px;
+  line-height: 20px;
+  color: var(--sw-title);
+}
+.sw-thanks .sw-actions { padding-top: 20px; }
+
+/* Мобильная версия: нижняя шторка с «ручкой» */
+@media (max-width: 600px) {
+  .sw-overlay { justify-content: flex-end; padding: 0; }
+  .sw-handle {
+    display: block;
+    width: 40px;
+    height: 2px;
+    margin-bottom: 5px;
+    border-radius: 2px;
+    background: #fff;
+  }
+  .sw-popup {
+    max-width: none;
+    max-height: 90vh;
+    max-height: 90dvh;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .sw-header { padding: 10px 20px; }
+  .sw-question { padding: 20px; }
+  .sw-actions { padding: 20px; position: sticky; bottom: 0; background: #fff; }
+}
+`,_=class{constructor(e,t,n,r){this.survey=e,this.api=t,this.options=n,this.onClosed=r,this.impression=null,this.stepIndex=0,this.answeredByCode=new Map,this.finished=!1,this.closed=!1,this.onKeyDown=e=&gt;{e.key===`Escape`&amp;&amp;this.close()},this.host=i(`div`,{&quot;data-survey-widget&quot;:e.code}),this.root=this.host.attachShadow({mode:`open`}),this.root.append(i(`style`,{},g));let a=i(`div`,{class:`sw-overlay`});this.popup=i(`div`,{class:`sw-popup`,role:`dialog`,&quot;aria-modal&quot;:`true`,&quot;aria-labelledby&quot;:`sw-title`}),a.append(i(`div`,{class:`sw-handle`,&quot;aria-hidden&quot;:`true`}),this.popup),this.root.append(a),n.closeOnOutsideClick&amp;&amp;a.addEventListener(`click`,e=&gt;{e.target===a&amp;&amp;this.close()})}mount(){document.body.append(this.host),this.options.closeOnEsc&amp;&amp;document.addEventListener(`keydown`,this.onKeyDown),this.renderStep()}setImpression(e){this.impression=e,e.catch(()=&gt;void 0)}dismiss(){this.closed||(this.closed=!0,clearTimeout(this.autoCloseTimer),document.removeEventListener(`keydown`,this.onKeyDown),this.host.remove(),this.onClosed())}close(){if(!this.closed){if(this.impression&amp;&amp;!this.finished){let e=this.survey.steps[this.stepIndex].step;this.impression.then(t=&gt;this.api.close(t,e)).catch(()=&gt;void 0)}this.dismiss()}}renderHeader(){let e=i(`div`,{class:`sw-header`}),t=i(`span`,{class:`sw-progress`});!this.finished&amp;&amp;this.survey.steps.length&gt;1&amp;&amp;(t.textContent=`${this.stepIndex+1}/${this.survey.steps.length}`);let n=i(`h2`,{class:`sw-title`,id:`sw-title`},this.finished?``:this.survey.title),r=i(`button`,{type:`button`,class:`sw-close`,&quot;aria-label&quot;:this.options.texts.close});return r.innerHTML=`&lt;svg width=&quot;20&quot; height=&quot;20&quot; viewBox=&quot;0 0 20 20&quot; aria-hidden=&quot;true&quot;&gt;&lt;path d=&quot;M3 3l14 14M17 3L3 17&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.6&quot; stroke-linecap=&quot;round&quot;/&gt;&lt;/svg&gt;`,r.addEventListener(`click`,()=&gt;this.close()),e.append(t,n,r),e}renderStep(){let e=this.survey.steps[this.stepIndex],t=i(`button`,{type:`submit`,class:`sw-submit`},this.options.texts.submit),n=i(`p`,{class:`sw-error`,role:`alert`,hidden:``}),r=i(`div`,{class:`sw-actions`},n,t),a=e=&gt;!e.element.hidden,o=()=&gt;{let e=new Map(this.answeredByCode);for(let t of l){t.element.hidden=!c(t.question.settings.showIf,e);let n=t.getValue();a(t)&amp;&amp;n!==void 0&amp;&amp;e.set(t.question.code,n)}let n=l.every(e=&gt;!a(e)||!e.question.required||e.getValue()!==void 0);r.hidden=!n,t.disabled=!n},l=e.questions.map(e=&gt;s(e,()=&gt;{n.hidden=!0,o()}));o();let u=i(`form`,{novalidate:``},...l.map(e=&gt;e.element),r);u.addEventListener(`submit`,r=&gt;{r.preventDefault(),this.submitStep(e.step,l.filter(a),t,n,o)}),this.popup.replaceChildren(this.renderHeader(),u)}async submitStep(e,t,n,r,i){if(!this.impression)return;let a=new Map;for(let e of t){let t=e.getValue();t!==void 0&amp;&amp;a.set(e.question.id,t)}n.disabled=!0,r.hidden=!0;try{let n=await this.impression,r=await this.saveWithRetry(n,e,a);if(this.closed)return;for(let e of t){let t=a.get(e.question.id);t!==void 0&amp;&amp;this.answeredByCode.set(e.question.code,t)}r.completed||this.stepIndex+1&gt;=this.survey.steps.length?this.showThanks():(this.stepIndex++,this.renderStep())}catch{if(this.closed)return;r.textContent=this.options.texts.sendError,r.hidden=!1,i()}}async saveWithRetry(e,t,n){try{return await this.api.saveStep(e,t,n)}catch{return await this.api.saveStep(e,t,n)}}showThanks(){this.finished=!0;let e=i(`button`,{type:`button`,class:`sw-submit`},this.options.texts.closeButton);e.addEventListener(`click`,()=&gt;this.dismiss());let t=i(`div`,{class:`sw-thanks`},i(`p`,{class:`sw-thanks-text`},this.options.texts.thankYou),i(`div`,{class:`sw-actions`},e));this.popup.classList.add(`sw-finished`),this.popup.replaceChildren(this.renderHeader(),t),this.options.thankYouAutoCloseMs&gt;0&amp;&amp;(this.autoCloseTimer=setTimeout(()=&gt;this.dismiss(),this.options.thankYouAutoCloseMs))}},v=[`SCALE`,`TEXT`,`SINGLE_CHOICE`,`MULTIPLE_CHOICE`,`STARS`],y={submit:`Отправить`,close:`Закрыть`,closeButton:`Закрыть`,thankYou:`Спасибо, что помогаете становиться лучше!`,sendError:`Не удалось отправить, попробуйте еще раз`},b=k({}),x=null,S=new Set;function C(e={}){b=k(e)}async function w(e,t={}){let n=`${e}|${t.eventObjectId??``}`;if(!S.has(n)){S.add(n);try{if(await A(b.delayMs),E()||b.isOtherModalOpen())return;let n=await b.api.getActive(e,b.requestTimeoutMs);if(!n||!D(n)||E()||b.isOtherModalOpen())return;let r=new _(n,b.api,b,()=&gt;{x===r&amp;&amp;(x=null)});x=r,r.mount();let i=b.api.createImpression(n.surveyId,e,t.eventObjectId);r.setImpression(i),i.catch(()=&gt;r.dismiss())}catch{}}}function T(e){if(e===void 0){S.clear();return}for(let t of[...S])t.startsWith(`${e}|`)&amp;&amp;S.delete(t)}function E(){return x!==null&amp;&amp;x.host.isConnected}function D(e){return e.steps.length&gt;0&amp;&amp;e.steps.every(e=&gt;e.questions.length&gt;0&amp;&amp;e.questions.every(e=&gt;v.includes(e.type)))}function O(){return document.querySelector(`[aria-modal=&quot;true&quot;], dialog[open]`)!==null}function k(e){return{api:new n(e.baseUrl??`/api/v1/surveys`,e.headers??(()=&gt;({}))),delayMs:e.delayMs??2e3,requestTimeoutMs:e.requestTimeoutMs??1500,isOtherModalOpen:e.isOtherModalOpen??O,closeOnEsc:e.closeOnEsc??!0,closeOnOutsideClick:e.closeOnOutsideClick??!0,thankYouAutoCloseMs:e.thankYouAutoCloseMs??4e3,texts:{...y,...e.texts}}}function A(e){return e&gt;0?new Promise(t=&gt;setTimeout(t,e)):Promise.resolve()}return e.initSurveys=C,e.resetSurveyVisit=T,e.showSurvey=w,e})({});&lt;/script&gt;
+&lt;script&gt;SurveyWidget.initSurveys(); parent.postMessage({ source: 'survey-preview', ready: true }, '*');&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+      </div>
+      <p class="note">Шрифт Mazzard M подключен на сайте, а здесь его нет, поэтому тексты показаны запасным шрифтом. На сайте будет как в макете.</p>
+
+      <section class="panel">
+        <div class="row"><h2>Запросы к сервису</h2><button class="clear" id="clear">Очистить</button></div>
+        <div class="log" id="log"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  const frame = document.getElementById('site');
+  const log = document.getElementById('log');
+  let current = 'loan_repaid';
+  let ready = false;
+
+  const NOTES = {
+    'GET': 'Виджет спрашивает, есть ли опрос для события',
+    'POST /impressions': 'Поп-ап отрисован, сервис фиксирует показ',
+    'PUT': 'Клиент отправил ответы шага',
+    'POST close': 'Клиент закрыл опрос крестиком',
+  };
+
+  function show(step) {
+    current = step;
+    document.querySelectorAll('.event').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.step === step)));
+    if (ready) frame.contentWindow.postMessage({ source: 'survey-preview-control', flowStep: step }, '*');
+  }
+
+  function describe(entry) {
+    if (entry.method === 'GET') return NOTES.GET;
+    if (entry.method === 'PUT') return NOTES.PUT;
+    if (entry.path.endsWith('/close')) return NOTES['POST close'];
+    return NOTES['POST /impressions'];
+  }
+
+  function readableBody(entry) {
+    if (!entry.body) return '';
+    if (entry.body.answers) {
+      return JSON.stringify({ answers: entry.body.answers.map(a => ({ question: entry.labels[a.questionId] || a.questionId, value: a.value })) }, null, 2);
+    }
+    return JSON.stringify(entry.body, null, 2);
+  }
+
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || data.source !== 'survey-preview') return;
+    if (data.ready) { ready = true; show(current); return; }
+    const item = document.createElement('div');
+    item.className = 'req';
+    const head = document.createElement('div');
+    head.className = 'req-head';
+    head.innerHTML = '<span class="m"></span><span class="p"></span><span class="s"></span>';
+    head.querySelector('.m').textContent = data.method;
+    head.querySelector('.p').textContent = '/api/v1/surveys' + data.path;
+    head.querySelector('.s').textContent = data.status;
+    const note = document.createElement('div');
+    note.className = 'req-note';
+    note.textContent = describe(data);
+    item.append(head, note);
+    const body = readableBody(data);
+    if (body) { const pre = document.createElement('pre'); pre.textContent = body; item.append(pre); }
+    log.prepend(item);
+  });
+
+  document.getElementById('events').addEventListener('click', (e) => {
+    const btn = e.target.closest('.event');
+    if (btn) show(btn.dataset.step);
+  });
+  document.getElementById('replay').addEventListener('click', () => show(current));
+  document.getElementById('clear').addEventListener('click', () => { log.replaceChildren(); });
+  document.querySelectorAll('[data-device]').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-device]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    document.getElementById('device').classList.toggle('mobile', btn.dataset.device === 'mobile');
+    // Ширина кадра меняет медиазапрос виджета: на узком экране опрос открывается шторкой
+    show(current);
+  }));
+</script>
+</body>
+</html>

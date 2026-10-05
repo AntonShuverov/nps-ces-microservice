@@ -108,6 +108,6 @@ window.addEventListener('message', (event) => {
 });
 </script>
 <script>/*BUNDLE*/</script>
-<script>SurveyWidget.initSurveys({ delayMs: 500, thankYouAutoCloseMs: 0 }); parent.postMessage({ source: 'survey-preview', ready: true }, '*');</script>
+<script>SurveyWidget.initSurveys(); parent.postMessage({ source: 'survey-preview', ready: true }, '*');</script>
 </body>
 </html>

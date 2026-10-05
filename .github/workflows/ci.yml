@@ -41,6 +41,13 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run prototype
+      # Готовый прототип хранится в репозитории: проверяем, что его пересобрали после изменений виджета
+      - name: Prototype is up to date
+        run: |
+          if ! git diff --exit-code -- ../nps-ces-prototype.html; then
+            echo "Прототип устарел. Пересоберите его командой: cd widget && npm run prototype"
+            exit 1
+          fi
 
   docker:
     name: Docker image
