@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,6 +15,9 @@ import jakarta.validation.constraints.Size;
  */
 public record SaveStepRequest(@NotNull @Size(max = 50) List<@Valid @NotNull Answer> answers) {
 
-    public record Answer(@NotNull Long questionId, JsonNode value) {
+    public record Answer(
+            @Schema(description = "ID вопроса", example = "2") @NotNull Long questionId,
+            @Schema(description = "Число, строка или массив строк в зависимости от типа вопроса", example = "6",
+                    types = {"integer", "string", "array"}) JsonNode value) {
     }
 }

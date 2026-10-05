@@ -6,7 +6,7 @@
 
 | Компонент | Папка | Состояние |
 |---|---|---|
-| Сервис опросов (Java 21, Spring Boot 3.5) | `backend/` | Готов, 34 теста |
+| Сервис опросов (Java 21, Spring Boot 3.5) | `backend/` | Готов, 43 теста |
 | Схема БД (PostgreSQL, миграции Flyway) | `backend/src/main/resources/db/migration/` | Готова |
 | Виджет поп-апа для сайта (TypeScript, без зависимостей) | `widget/` | Готов, 10 тестов |
 | Пример витрины для DWH/BI | `dwh/` | Пример, адаптировать под DWH |
@@ -43,7 +43,8 @@ survey-service ──► PostgreSQL (своя схема/БД, 5 таблиц)  
 - [ ] Выбрать вариант встраивания (таблица выше).
 - [ ] Создать БД или схему в PostgreSQL и пользователя для сервиса. Миграции Flyway применятся при старте.
 - [ ] Собрать образ (`backend/Dockerfile`) или подключить сборку к своему CI/CD.
-- [ ] Health-проверки: `/actuator/health/liveness`, `/actuator/health/readiness`. Метрики: `/actuator/prometheus`.
+- [ ] Health-проверки: `/actuator/health/liveness`, `/actuator/health/readiness`. Метрики: `/actuator/prometheus`. Документация API: `/swagger-ui.html` (в проде можно отключить `SURVEY_API_DOCS_ENABLED=false`).
+- [ ] Алерт на метрику `survey_config_invalid > 0`: значит, активный опрос заведен с ошибкой и не показывается.
 - [ ] Алерты на рост ошибок и время ответа выше 1,5 с (таймаут виджета).
 
 **API gateway**
@@ -71,6 +72,7 @@ survey-service ──► PostgreSQL (своя схема/БД, 5 таблиц)  
 **Опросы**
 - [ ] Продукт готовит конфигурацию опросов (вопросы, тексты, шкалы, шаги флоу, условия, доля показа).
 - [ ] Разработчик заводит ее миграцией в `db/migration` по образцу `db/seed/R__example_surveys.sql`. Примеры из `db/seed` в прод не попадают.
+- [ ] После деплоя проверить лог: опросы с ошибками конфигурации логируются как `Survey ... is not shown` и не показываются.
 
 ## Где что в коде
 
@@ -80,6 +82,7 @@ survey-service ──► PostgreSQL (своя схема/БД, 5 таблиц)  
 | Условия триггеров | `backend/.../rules/ConditionEvaluator.java` |
 | Правило «1 раз в день» | `backend/.../rules/FrequencyRule.java` |
 | Валидация ответов | `backend/.../rules/AnswerValidator.java` |
+| Проверка конфигурации опросов | `backend/.../rules/SurveyConfigValidator.java`, `backend/.../app/SurveyConfigRegistry.java` |
 | Операции API | `backend/.../app/SurveyService.java`, `backend/.../web/SurveyController.java` |
 | Определение клиента и лимит запросов | `backend/.../web/ClientIdentityFilter.java` |
 | Все настройки | `backend/src/main/resources/application.yml` |
@@ -89,5 +92,5 @@ survey-service ──► PostgreSQL (своя схема/БД, 5 таблиц)  
 ## Известные ограничения
 
 - Лимит запросов на клиента считается в памяти одного экземпляра. При нескольких экземплярах основной лимит лучше держать на gateway.
-- `docker compose` и тесты через Testcontainers не прогонялись в среде разработки (не было Docker). Тесты проверены на локальном PostgreSQL 16: `TEST_DB_URL=... mvn test`.
+- Тесты через Testcontainers и сборка Docker-образа проверяются в CI на GitHub (`.github/workflows/ci.yml`). Локально тесты можно запустить на своем PostgreSQL: `TEST_DB_URL=... mvn test`.
 - Принадлежность `eventObjectId` (займа) клиенту сервис не проверяет, он хранится как справочное значение.

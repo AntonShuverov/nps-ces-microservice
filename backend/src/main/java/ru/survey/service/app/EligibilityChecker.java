@@ -35,10 +35,12 @@ public class EligibilityChecker {
     private final ConditionEvaluator conditionEvaluator;
     private final FrequencyRule frequencyRule;
     private final Sampler sampler;
+    private final SurveyConfigRegistry configRegistry;
 
     public EligibilityChecker(SurveyProperties properties, SurveyRepository surveys, SurveyTriggerRepository triggers,
             SurveyImpressionRepository impressions, ClientAttributesProvider attributesProvider,
-            ConditionEvaluator conditionEvaluator, FrequencyRule frequencyRule, Sampler sampler) {
+            ConditionEvaluator conditionEvaluator, FrequencyRule frequencyRule, Sampler sampler,
+            SurveyConfigRegistry configRegistry) {
         this.properties = properties;
         this.surveys = surveys;
         this.triggers = triggers;
@@ -47,6 +49,7 @@ public class EligibilityChecker {
         this.conditionEvaluator = conditionEvaluator;
         this.frequencyRule = frequencyRule;
         this.sampler = sampler;
+        this.configRegistry = configRegistry;
     }
 
     /**
@@ -79,6 +82,7 @@ public class EligibilityChecker {
             Supplier<Map<String, Object>> attributes, Instant now) {
         return surveys.findById(trigger.getSurveyId())
                 .filter(survey -> survey.isActiveAt(now))
+                .filter(survey -> !configRegistry.isInvalid(survey.getId()))
                 .filter(survey -> !ConditionEvaluator.hasConditions(trigger.getConditions())
                         || conditionEvaluator.matches(trigger.getConditions(), attributes.get()))
                 .filter(survey -> frequencyRule.allows(

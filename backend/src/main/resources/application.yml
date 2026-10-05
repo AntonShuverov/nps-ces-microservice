@@ -28,6 +28,12 @@ management:
       probes:
         enabled: true
 
+springdoc:
+  api-docs:
+    enabled: ${SURVEY_API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${SURVEY_API_DOCS_ENABLED:true}
+
 survey:
   # Аварийный флаг: false — сервис всегда отвечает «опроса нет» (п. 10.9)
   enabled: ${SURVEY_ENABLED:true}
@@ -43,6 +49,8 @@ survey:
     # URL сервиса клиентов для атрибутов условий показа (п. 6.2). Пусто — атрибутов нет
     url: ${SURVEY_CLIENT_ATTRIBUTES_URL:}
     timeout-ms: ${SURVEY_CLIENT_ATTRIBUTES_TIMEOUT_MS:500}
+  # Как часто перепроверять конфигурацию активных опросов. Опросы с ошибками не показываются
+  config-check-interval: ${SURVEY_CONFIG_CHECK_INTERVAL:PT5M}
   # Домены сайта, если виджет обращается к сервису напрямую, а не через gateway
   cors-allowed-origins: ${SURVEY_CORS_ALLOWED_ORIGINS:}
 
