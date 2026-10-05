@@ -63,17 +63,21 @@ class SurveyApiTest extends IntegrationTestBase {
     void returnsSurveyConfigurationWithSteps() throws Exception {
         active(CLIENT, "loan_issued")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value("ces_nps_after_loan_issued"))
+                .andExpect(jsonPath("$.code").value("nps_ces_loan_issued"))
                 .andExpect(jsonPath("$.title").value("Пройдите опрос"))
                 .andExpect(jsonPath("$.steps", hasSize(2)))
                 .andExpect(jsonPath("$.steps[0].step").value(1))
-                .andExpect(jsonPath("$.steps[0].questions[0].code").value("ces"))
+                .andExpect(jsonPath("$.steps[0].questions[0].code").value("nps"))
                 .andExpect(jsonPath("$.steps[0].questions[0].type").value("SCALE"))
-                .andExpect(jsonPath("$.steps[0].questions[0].settings.min").value(1))
-                .andExpect(jsonPath("$.steps[0].questions[0].settings.max").value(7))
-                .andExpect(jsonPath("$.steps[1].questions[0].code").value("nps"))
-                .andExpect(jsonPath("$.steps[1].questions[0].settings.max").value(10))
-                .andExpect(jsonPath("$.steps[1].questions[1].code").value("nps_comment"));
+                .andExpect(jsonPath("$.steps[0].questions[0].settings.min").value(0))
+                .andExpect(jsonPath("$.steps[0].questions[0].settings.max").value(10))
+                .andExpect(jsonPath("$.steps[0].questions[1].code").value("nps_comment"))
+                .andExpect(jsonPath("$.steps[0].questions[1].settings.showIf.question").value("nps"))
+                .andExpect(jsonPath("$.steps[0].questions[1].settings.showIf.value").value(6))
+                .andExpect(jsonPath("$.steps[1].questions[0].code").value("ces"))
+                .andExpect(jsonPath("$.steps[1].questions[0].settings.view").value("emoji"))
+                .andExpect(jsonPath("$.steps[1].questions[0].settings.max").value(5))
+                .andExpect(jsonPath("$.steps[1].questions[1].code").value("ces_comment"));
     }
 
     @Test
@@ -81,15 +85,15 @@ class SurveyApiTest extends IntegrationTestBase {
         JsonNode survey = activeSurvey(CLIENT, "loan_issued");
         String impressionId = createImpression(CLIENT, survey, "loan_issued", "loan-42");
 
-        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 6))
+        saveStep(CLIENT, impressionId, 1, Map.of(
+                questionId(survey, "nps"), 5,
+                questionId(survey, "nps_comment"), "Долго ждал одобрения"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("SHOWN"))
                 .andExpect(jsonPath("$.lastStep").value(1))
                 .andExpect(jsonPath("$.completed").value(false));
 
-        saveStep(CLIENT, impressionId, 2, Map.of(
-                questionId(survey, "nps"), 9,
-                questionId(survey, "nps_comment"), "Всё отлично"))
+        saveStep(CLIENT, impressionId, 2, Map.of(questionId(survey, "ces"), 4))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.lastStep").value(2))
@@ -106,18 +110,19 @@ class SurveyApiTest extends IntegrationTestBase {
                 FROM survey_answer a JOIN survey_question q ON q.id = a.question_id
                 WHERE a.impression_id = ?::uuid ORDER BY q.step, q.position""", impressionId);
         assertThat(answers).hasSize(3);
-        assertThat(answers.get(0)).containsEntry("code", "ces");
-        assertThat(answers.get(0).get("value_number").toString()).isEqualTo("6.00");
-        assertThat(answers.get(1).get("value_number").toString()).isEqualTo("9.00");
-        assertThat(answers.get(2)).containsEntry("value_text", "Всё отлично").containsEntry("client_id", CLIENT);
+        assertThat(answers.get(0)).containsEntry("code", "nps");
+        assertThat(answers.get(0).get("value_number").toString()).isEqualTo("5.00");
+        assertThat(answers.get(1)).containsEntry("value_text", "Долго ждал одобрения").containsEntry("client_id", CLIENT);
+        assertThat(answers.get(2)).containsEntry("code", "ces");
+        assertThat(answers.get(2).get("value_number").toString()).isEqualTo("4.00");
     }
 
     @Test
     void showsOncePerDayAndAgainOnNextDayEvenAfterAnswer() throws Exception {
         JsonNode survey = activeSurvey(CLIENT, "loan_issued");
         String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
-        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 7)).andExpect(status().isOk());
-        saveStep(CLIENT, impressionId, 2, Map.of(questionId(survey, "nps"), 10)).andExpect(status().isOk());
+        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 10)).andExpect(status().isOk());
+        saveStep(CLIENT, impressionId, 2, Map.of(questionId(survey, "ces"), 5)).andExpect(status().isOk());
 
         clock.advance(Duration.ofHours(5)); // 14:00 МСК того же дня
         active(CLIENT, "loan_issued").andExpect(status().isNoContent());
@@ -154,7 +159,7 @@ class SurveyApiTest extends IntegrationTestBase {
     void closingKeepsAnsweredStepsAndBlocksFurtherAnswers() throws Exception {
         JsonNode survey = activeSurvey(CLIENT, "loan_issued");
         String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
-        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 5)).andExpect(status().isOk());
+        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 8)).andExpect(status().isOk());
 
         close(CLIENT, impressionId, 2).andExpect(status().isNoContent());
 
@@ -165,7 +170,7 @@ class SurveyApiTest extends IntegrationTestBase {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM survey_answer WHERE impression_id = ?::uuid",
                 Integer.class, impressionId)).isEqualTo(1);
 
-        saveStep(CLIENT, impressionId, 2, Map.of(questionId(survey, "nps"), 3))
+        saveStep(CLIENT, impressionId, 2, Map.of(questionId(survey, "ces"), 3))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("IMPRESSION_FINISHED"));
     }
@@ -187,8 +192,8 @@ class SurveyApiTest extends IntegrationTestBase {
     void resubmittingStepOverwritesAnswers() throws Exception {
         JsonNode survey = activeSurvey(CLIENT, "loan_issued");
         String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
-        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 2)).andExpect(status().isOk());
-        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 6)).andExpect(status().isOk());
+        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 2)).andExpect(status().isOk());
+        saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 6)).andExpect(status().isOk());
 
         assertThat(jdbc.queryForList("SELECT value_number FROM survey_answer WHERE impression_id = ?::uuid",
                 java.math.BigDecimal.class, impressionId))
@@ -199,23 +204,23 @@ class SurveyApiTest extends IntegrationTestBase {
     void validatesAnswers() throws Exception {
         JsonNode survey = activeSurvey(CLIENT, "loan_issued");
         String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
-        long ces = questionId(survey, "ces");
         long nps = questionId(survey, "nps");
+        long ces = questionId(survey, "ces");
 
-        saveStep(CLIENT, impressionId, 1, Map.of(ces, 8))
+        saveStep(CLIENT, impressionId, 1, Map.of(nps, 11))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("INVALID_ANSWERS"))
-                .andExpect(jsonPath("$.errors." + ces).value("Значение должно быть от 1 до 7"));
+                .andExpect(jsonPath("$.errors." + nps).value("Значение должно быть от 0 до 10"));
 
         saveStep(CLIENT, impressionId, 1, Map.of())
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.errors." + ces).value("Обязательный вопрос"));
+                .andExpect(jsonPath("$.errors." + nps).value("Обязательный вопрос"));
 
-        saveStep(CLIENT, impressionId, 1, Map.of(ces, 5, nps, 9))
+        saveStep(CLIENT, impressionId, 1, Map.of(nps, 5, ces, 4))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.errors." + nps).value("Вопрос не относится к этому шагу опроса"));
+                .andExpect(jsonPath("$.errors." + ces).value("Вопрос не относится к этому шагу опроса"));
 
-        saveStep(CLIENT, impressionId, 3, Map.of(ces, 5))
+        saveStep(CLIENT, impressionId, 3, Map.of(nps, 5))
                 .andExpect(status().isUnprocessableEntity());
 
         assertThat(jdbc.queryForObject("SELECT count(*) FROM survey_answer", Integer.class)).isZero();
@@ -284,6 +289,29 @@ class SurveyApiTest extends IntegrationTestBase {
         assertThatThrownBy(() -> jdbc.update("UPDATE survey_question SET text = 'Новый текст' WHERE id = ?", ces))
                 .hasMessageContaining("уже имеет ответы");
         jdbc.update("UPDATE survey_question SET required = required WHERE id = ?", ces);
+    }
+
+    @Test
+    void commentIsSavedOnlyWhenScoreIsLow() throws Exception {
+        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
+        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        long nps = questionId(survey, "nps");
+        long comment = questionId(survey, "nps_comment");
+
+        // Высокая оценка: комментарий скрыт, даже присланный он не сохраняется
+        saveStep(CLIENT, impressionId, 1, Map.of(nps, 9, comment, "Не должен сохраниться")).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM survey_answer WHERE impression_id = ?::uuid",
+                Integer.class, impressionId)).isEqualTo(1);
+
+        // Клиент передумал и поставил низкую оценку: комментарий сохраняется
+        saveStep(CLIENT, impressionId, 1, Map.of(nps, 6, comment, "Сложная анкета")).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT value_text FROM survey_answer WHERE question_id = ? AND impression_id = ?::uuid",
+                String.class, comment, impressionId)).isEqualTo("Сложная анкета");
+
+        // И снова высокая: сохраненный ранее комментарий удаляется
+        saveStep(CLIENT, impressionId, 1, Map.of(nps, 10)).andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM survey_answer WHERE impression_id = ?::uuid",
+                Integer.class, impressionId)).isEqualTo(1);
     }
 
     private long createTestSurvey(String code, int priority, int showPercent, String conditions) {

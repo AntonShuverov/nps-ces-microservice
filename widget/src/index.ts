@@ -13,10 +13,9 @@ export type * from './types';
 const DEFAULT_TEXTS: Texts = {
   submit: 'Отправить',
   close: 'Закрыть',
-  thankYouTitle: 'Спасибо!',
-  thankYouText: 'Ваш ответ поможет нам стать лучше',
+  closeButton: 'Закрыть',
+  thankYou: 'Спасибо, что помогаете становиться лучше!',
   sendError: 'Не удалось отправить, попробуйте еще раз',
-  charactersLeft: (left) => `Осталось символов: ${left}`,
 };
 
 interface Config {

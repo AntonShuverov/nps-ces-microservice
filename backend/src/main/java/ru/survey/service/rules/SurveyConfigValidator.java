@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import ru.survey.service.domain.QuestionType;
 import ru.survey.service.domain.Survey;
 import ru.survey.service.domain.SurveyQuestion;
 import ru.survey.service.domain.SurveyTrigger;
@@ -51,6 +52,7 @@ public class SurveyConfigValidator {
 
         for (SurveyQuestion question : questions) {
             validateQuestion(question).forEach(e -> errors.add("вопрос " + question.getCode() + ": " + e));
+            validateShowIf(question, questions).forEach(e -> errors.add("вопрос " + question.getCode() + ": " + e));
         }
         for (SurveyTrigger trigger : triggers) {
             validateConditions(trigger.getConditions())
@@ -73,6 +75,8 @@ public class SurveyConfigValidator {
                     errors.add("min шкалы должен быть меньше max");
                 } else if (settings.get("max").asInt() - settings.get("min").asInt() > 10) {
                     errors.add("в шкале больше 11 значений");
+                } else {
+                    errors.addAll(validateScaleView(settings));
                 }
             }
             case STARS -> {
@@ -96,6 +100,55 @@ public class SurveyConfigValidator {
             }
         }
         return errors;
+    }
+
+    /** view = "emoji": шкала смайликами. Для шкалы из 5 значений смайлики по умолчанию есть на фронте. */
+    private List<String> validateScaleView(JsonNode settings) {
+        JsonNode view = settings.get("view");
+        if (view == null || view.isNull()) {
+            return List.of();
+        }
+        if (!"emoji".equals(view.asText())) {
+            return List.of("неизвестный view '" + view.asText() + "', допустимо: emoji");
+        }
+        int size = settings.get("max").asInt() - settings.get("min").asInt() + 1;
+        JsonNode icons = settings.get("icons");
+        if (icons == null) {
+            return size == 5 ? List.of() : List.of("для шкалы смайликами не из 5 значений нужен список icons");
+        }
+        if (!icons.isArray() || icons.size() != size) {
+            return List.of("в icons должно быть " + size + " смайликов, по одному на значение");
+        }
+        return List.of();
+    }
+
+    /** showIf ссылается на шкалу или звезды на этом же или более раннем шаге. */
+    private List<String> validateShowIf(SurveyQuestion question, List<SurveyQuestion> questions) {
+        JsonNode showIf = question.getSettings().get("showIf");
+        if (showIf == null || showIf.isNull()) {
+            return List.of();
+        }
+        String code = showIf.path("question").asText("");
+        String op = showIf.path("op").asText("");
+        JsonNode value = showIf.get("value");
+        SurveyQuestion source = questions.stream().filter(q -> q.getCode().equals(code)).findFirst().orElse(null);
+        if (source == null) {
+            return List.of("showIf ссылается на неизвестный вопрос '" + code + "'");
+        }
+        if (source == question || source.getStep() > question.getStep()
+                || (source.getStep() == question.getStep() && source.getPosition() >= question.getPosition())) {
+            return List.of("showIf должен ссылаться на вопрос выше этого");
+        }
+        if (source.getType() != QuestionType.SCALE && source.getType() != QuestionType.STARS) {
+            return List.of("showIf работает только по шкале или звездам");
+        }
+        if (!VisibilityRule.OPERATORS.contains(op)) {
+            return List.of("неизвестный оператор showIf '" + op + "'");
+        }
+        boolean valid = "in".equals(op)
+                ? value != null && value.isArray() && !value.isEmpty()
+                : value != null && value.isNumber();
+        return valid ? List.of() : List.of("в showIf нужно " + ("in".equals(op) ? "список чисел" : "число") + " в value");
     }
 
     private List<String> validateOptions(JsonNode options) {
