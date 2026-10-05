@@ -1,0 +1,22 @@
+{
+  "name": "survey-widget",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Поп-ап опросов NPS и CES для сайта",
+  "type": "module",
+  "main": "dist/survey-widget.js",
+  "module": "dist/survey-widget.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "dev": "vite --open /demo/index.html",
+    "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  }
+}

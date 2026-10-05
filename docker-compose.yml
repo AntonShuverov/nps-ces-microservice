@@ -1,0 +1,27 @@
+# Локальный запуск: PostgreSQL + сервис опросов с примерами опросов (профиль dev).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: survey
+      POSTGRES_USER: survey
+      POSTGRES_PASSWORD: survey
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U survey"]
+      interval: 5s
+      retries: 10
+
+  survey-service:
+    build: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:postgresql://postgres:5432/survey
+      DB_USER: survey
+      DB_PASSWORD: survey
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
