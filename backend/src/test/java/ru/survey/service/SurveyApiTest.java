@@ -69,7 +69,7 @@ class SurveyApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.steps[0].step").value(1))
                 .andExpect(jsonPath("$.steps[0].questions[0].code").value("nps"))
                 .andExpect(jsonPath("$.steps[0].questions[0].type").value("SCALE"))
-                .andExpect(jsonPath("$.steps[0].questions[0].settings.min").value(0))
+                .andExpect(jsonPath("$.steps[0].questions[0].settings.min").value(1))
                 .andExpect(jsonPath("$.steps[0].questions[0].settings.max").value(10))
                 .andExpect(jsonPath("$.steps[0].questions[1].code").value("nps_comment"))
                 .andExpect(jsonPath("$.steps[0].questions[1].settings.showIf.question").value("nps"))
@@ -210,7 +210,7 @@ class SurveyApiTest extends IntegrationTestBase {
         saveStep(CLIENT, impressionId, 1, Map.of(nps, 11))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.code").value("INVALID_ANSWERS"))
-                .andExpect(jsonPath("$.errors." + nps).value("Значение должно быть от 0 до 10"));
+                .andExpect(jsonPath("$.errors." + nps).value("Значение должно быть от 1 до 10"));
 
         saveStep(CLIENT, impressionId, 1, Map.of())
                 .andExpect(status().isUnprocessableEntity())

@@ -20,7 +20,7 @@ SELECT s.id, q.code, q.metric, q.step, q.position, q.type, q.text, q.required, q
 FROM survey s,
      (VALUES
         ('nps', 'NPS', 1, 1, 'SCALE', 'Насколько вероятно, что вы порекомендуете наш сервис?', TRUE,
-         '{"min": 0, "max": 10}'),
+         '{"min": 1, "max": 10}'),
         ('nps_comment', 'NPS', 1, 2, 'TEXT', 'Посоветуйте, что можно сделать лучше', FALSE,
          '{"placeholder": "Ваш комментарий здесь", "maxLength": 1000, "showIf": {"question": "nps", "op": "lte", "value": 6}}'),
         ('ces', 'CES', 2, 1, 'SCALE', 'Насколько легко было получить займ?', TRUE,
