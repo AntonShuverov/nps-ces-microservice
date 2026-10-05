@@ -1,0 +1,58 @@
+spring:
+  application:
+    name: survey-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/survey}
+    username: ${DB_USER:survey}
+    password: ${DB_PASSWORD:survey}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    locations: classpath:db/migration
+
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus, metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+survey:
+  # Аварийный флаг: false — сервис всегда отвечает «опроса нет» (п. 10.9)
+  enabled: ${SURVEY_ENABLED:true}
+  # Граница дня для правила «1 раз в день» (п. 10.10)
+  business-zone: ${SURVEY_BUSINESS_ZONE:Europe/Moscow}
+  # Максимум показов любых опросов одному клиенту за день, 0 — без ограничения (п. 10.5)
+  global-daily-limit: ${SURVEY_GLOBAL_DAILY_LIMIT:0}
+  # Заголовок с ID клиента от API gateway. Gateway должен удалять его из внешних запросов
+  client-id-header: ${SURVEY_CLIENT_ID_HEADER:X-Client-Id}
+  rate-limit:
+    requests-per-minute: ${SURVEY_RATE_LIMIT_PER_MINUTE:60}
+  client-attributes:
+    # URL сервиса клиентов для атрибутов условий показа (п. 6.2). Пусто — атрибутов нет
+    url: ${SURVEY_CLIENT_ATTRIBUTES_URL:}
+    timeout-ms: ${SURVEY_CLIENT_ATTRIBUTES_TIMEOUT_MS:500}
+  # Домены сайта, если виджет обращается к сервису напрямую, а не через gateway
+  cors-allowed-origins: ${SURVEY_CORS_ALLOWED_ORIGINS:}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    locations: classpath:db/migration, classpath:db/seed
+
+survey:
+  cors-allowed-origins: http://localhost:5173

@@ -1,0 +1,8 @@
+backend/target/
+widget/node_modules/
+widget/dist/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+.vite/
