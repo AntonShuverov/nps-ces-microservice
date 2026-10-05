@@ -1,6 +1,7 @@
 /**
  * Стили поп-апа по макетам Figma «NPS CES». Живут внутри Shadow DOM и не пересекаются со стилями сайта.
- * Шрифт берется с сайта (Mazzard M), его можно переопределить CSS-переменной --sw-font на странице.
+ * Шрифты как в макете: тексты — Mazzard M, цифры шкалы — Montserrat. Виджет не загружает шрифты сам,
+ * а использует подключенные на сайте. Их можно переопределить CSS-переменными --sw-font и --sw-digits-font.
  */
 export const styles = `
 :host { all: initial; }
@@ -107,7 +108,7 @@ form { margin: 0; }
   border-color: var(--sw-accent);
   background: radial-gradient(circle, var(--sw-accent) 0 2px, transparent 2.5px);
 }
-.sw-scale-number { font-size: 12px; line-height: 15px; }
+.sw-scale-number { font-family: var(--sw-digits-font, "Montserrat", inherit); font-size: 12px; line-height: 15px; }
 .sw-scale-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--sw-muted); }
 
 /* CES: смайлики, после выбора остальные бледнеют */

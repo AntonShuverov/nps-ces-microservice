@@ -6,13 +6,13 @@ import type { ActiveSurvey } from '../src/types';
 // Как в макете: шаг 1 — NPS, шаг 2 — CES смайликами, комментарий только при низкой оценке
 const SURVEY: ActiveSurvey = {
   surveyId: 2,
-  code: 'nps_ces_loan_issued',
+  code: 'nps_ces_loan_repaid',
   title: 'Пройдите опрос',
   steps: [
     {
       step: 1,
       questions: [
-        { id: 10, code: 'nps', type: 'SCALE', text: 'Порекомендуете?', required: true, settings: { min: 0, max: 10 } },
+        { id: 10, code: 'nps', type: 'SCALE', text: 'Порекомендуете?', required: true, settings: { min: 1, max: 10 } },
         {
           id: 11, code: 'nps_comment', type: 'TEXT', text: 'Посоветуйте, что можно сделать лучше', required: false,
           settings: { maxLength: 100, showIf: { question: 'nps', op: 'lte', value: 6 } },
@@ -109,7 +109,7 @@ describe('showSurvey', () => {
 
     expect(root()!.querySelector('.sw-title')!.textContent).toBe('Пройдите опрос');
     expect(root()!.querySelector('.sw-progress')!.textContent).toBe('1/2');
-    expect(root()!.querySelectorAll('.sw-scale-item')).toHaveLength(11);
+    expect(root()!.querySelectorAll('.sw-scale-item')).toHaveLength(10);
     expect(calls[1]).toMatchObject({
       method: 'POST',
       url: '/api/v1/surveys/impressions',
