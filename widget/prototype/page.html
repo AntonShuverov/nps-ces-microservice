@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Прототип опросов NPS CES</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+  /* Рабочий стол прототипа: слева сценарии и журнал запросов, справа экран сайта с опросом */
+  :root {
+    --bg: #eef2f6;
+    --panel: #ffffff;
+    --line: #dbe3ea;
+    --fg: #111e2b;
+    --muted: #5d7489;
+    --accent: #166cb7;
+    --accent-soft: #e3eef8;
+    --brand: #ff6016;
+    --code-bg: #f4f7fa;
+    --ok: #1d7a3e;
+    --font-ui: "Golos Text", -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    --font-code: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e151c; --panel: #16212b; --line: #26343f; --fg: #e8eef3; --muted: #93a7b8;
+      --accent: #5aa6ea; --accent-soft: #1b3348; --brand: #ff7a3d; --code-bg: #101920; --ok: #5cc985;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e151c; --panel: #16212b; --line: #26343f; --fg: #e8eef3; --muted: #93a7b8;
+    --accent: #5aa6ea; --accent-soft: #1b3348; --brand: #ff7a3d; --code-bg: #101920; --ok: #5cc985;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 15px; line-height: 1.45; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding-inline: 16px; padding-block: 24px 40px; display: grid; gap: 20px; }
+  header h1 { margin: 0; font-size: 24px; font-weight: 600; text-wrap: balance; }
+  header p { margin: 6px 0 0; color: var(--muted); max-width: 70ch; }
+  .layout { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .side { display: grid; gap: 16px; min-width: 0; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; min-width: 0; }
+  .panel h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .events { display: grid; gap: 8px; }
+  .event {
+    display: grid; gap: 2px; width: 100%; padding: 12px 14px; text-align: left;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg);
+    font: inherit; cursor: pointer;
+  }
+  .event:hover { border-color: var(--accent); }
+  .event[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .event b { font-weight: 600; }
+  .event span { font-size: 13px; color: var(--muted); }
+  .event code { font-family: var(--font-code); font-size: 12px; color: var(--accent); }
+  .hints { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 14px; }
+  .hints b { color: var(--fg); font-weight: 500; }
+  .stage { display: grid; gap: 12px; min-width: 0; }
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+  .seg { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .seg button { padding: 7px 14px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 14px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .replay { padding: 8px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--fg); font: inherit; font-size: 14px; cursor: pointer; }
+  .replay:hover { border-color: var(--accent); }
+  .device { display: flex; justify-content: center; padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow-x: auto; }
+  .device iframe { display: block; width: 100%; height: 640px; border: 0; border-radius: 10px; background: #f2f5f8; }
+  .device.mobile iframe { width: 360px; max-width: 100%; height: 720px; border: 8px solid #1d2731; border-radius: 34px; }
+  .log { display: grid; gap: 8px; max-height: 420px; overflow-y: auto; }
+  .log:empty::before { content: "Здесь появятся запросы виджета к сервису: получение опроса, показ, ответы, закрытие."; color: var(--muted); font-size: 14px; }
+  .req { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--code-bg); min-width: 0; }
+  .req-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-family: var(--font-code); font-size: 12px; }
+  .req-head .m { font-weight: 600; color: var(--accent); }
+  .req-head .s { margin-left: auto; color: var(--ok); }
+  .req-note { margin-top: 4px; font-size: 13px; color: var(--muted); }
+  .req pre { margin: 6px 0 0; font-family: var(--font-code); font-size: 12px; white-space: pre-wrap; word-break: break-word; color: var(--fg); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .row h2 { margin: 0; }
+  .clear { border: 0; background: none; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; padding: 0; }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .note { margin: 0; font-size: 13px; color: var(--muted); }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Прототип опросов NPS CES</h1>
+    <p>Настоящий виджет из репозитория с теми же опросами, что заведены в сервисе. Выберите событие на сайте, пройдите опрос и посмотрите, что уходит на сервер. Сервер здесь заменен заглушкой, данные никуда не отправляются.</p>
+  </header>
+
+  <div class="layout">
+    <div class="side">
+      <section class="panel">
+        <h2>Событие на сайте</h2>
+        <div class="events" id="events">
+          <button class="event" id="ev-loan_repaid" data-step="loan_repaid" aria-pressed="true">
+            <b>Займ погашен</b>
+            <span>NPS 1–10, затем CES про оплату. 2 шага, как в макете</span>
+            <code>loan_repaid</code>
+          </button>
+          <button class="event" id="ev-loan_issued" data-step="loan_issued" aria-pressed="false">
+            <b>Займ выдан</b>
+            <span>CES смайликами. 1 шаг</span>
+            <code>loan_issued</code>
+          </button>
+          <button class="event" id="ev-application_submitted" data-step="application_submitted" aria-pressed="false">
+            <b>Заявка отправлена</b>
+            <span>CES смайликами. 1 шаг</span>
+            <code>application_submitted</code>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Что проверить</h2>
+        <ul class="hints">
+          <li><b>Кнопка «Отправить»</b> появляется только после выбора оценки.</li>
+          <li><b>NPS 6 и ниже</b> — появляется поле «Посоветуйте, что можно сделать лучше». 7 и выше — поля нет.</li>
+          <li><b>CES 😭 😒 😐</b> (1–3) — появляется поле про трудности. ☺️ 😍 — поля нет.</li>
+          <li><b>Крестик</b> на любом шаге закрывает опрос, в журнале видно, на каком шаге.</li>
+          <li><b>Мобильный вид</b> открывает опрос нижней шторкой.</li>
+        </ul>
+      </section>
+    </div>
+
+    <div class="stage">
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="Устройство">
+          <button id="dev-desktop" data-device="desktop" aria-pressed="true">Десктоп</button>
+          <button id="dev-mobile" data-device="mobile" aria-pressed="false">Мобильный</button>
+        </div>
+        <button class="replay" id="replay">Показать опрос заново</button>
+      </div>
+      <div class="device" id="device">
+        <iframe id="site" title="Экран сайта с опросом" srcdoc="__FRAME__"></iframe>
+      </div>
+      <p class="note">Шрифт Mazzard M подключен на сайте, а здесь его нет, поэтому тексты показаны запасным шрифтом. На сайте будет как в макете.</p>
+
+      <section class="panel">
+        <div class="row"><h2>Запросы к сервису</h2><button class="clear" id="clear">Очистить</button></div>
+        <div class="log" id="log"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+  const frame = document.getElementById('site');
+  const log = document.getElementById('log');
+  let current = 'loan_repaid';
+  let ready = false;
+
+  const NOTES = {
+    'GET': 'Виджет спрашивает, есть ли опрос для события',
+    'POST /impressions': 'Поп-ап отрисован, сервис фиксирует показ',
+    'PUT': 'Клиент отправил ответы шага',
+    'POST close': 'Клиент закрыл опрос крестиком',
+  };
+
+  function show(step) {
+    current = step;
+    document.querySelectorAll('.event').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.step === step)));
+    if (ready) frame.contentWindow.postMessage({ source: 'survey-preview-control', flowStep: step }, '*');
+  }
+
+  function describe(entry) {
+    if (entry.method === 'GET') return NOTES.GET;
+    if (entry.method === 'PUT') return NOTES.PUT;
+    if (entry.path.endsWith('/close')) return NOTES['POST close'];
+    return NOTES['POST /impressions'];
+  }
+
+  function readableBody(entry) {
+    if (!entry.body) return '';
+    if (entry.body.answers) {
+      return JSON.stringify({ answers: entry.body.answers.map(a => ({ question: entry.labels[a.questionId] || a.questionId, value: a.value })) }, null, 2);
+    }
+    return JSON.stringify(entry.body, null, 2);
+  }
+
+  window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (!data || data.source !== 'survey-preview') return;
+    if (data.ready) { ready = true; show(current); return; }
+    const item = document.createElement('div');
+    item.className = 'req';
+    const head = document.createElement('div');
+    head.className = 'req-head';
+    head.innerHTML = '<span class="m"></span><span class="p"></span><span class="s"></span>';
+    head.querySelector('.m').textContent = data.method;
+    head.querySelector('.p').textContent = '/api/v1/surveys' + data.path;
+    head.querySelector('.s').textContent = data.status;
+    const note = document.createElement('div');
+    note.className = 'req-note';
+    note.textContent = describe(data);
+    item.append(head, note);
+    const body = readableBody(data);
+    if (body) { const pre = document.createElement('pre'); pre.textContent = body; item.append(pre); }
+    log.prepend(item);
+  });
+
+  document.getElementById('events').addEventListener('click', (e) => {
+    const btn = e.target.closest('.event');
+    if (btn) show(btn.dataset.step);
+  });
+  document.getElementById('replay').addEventListener('click', () => show(current));
+  document.getElementById('clear').addEventListener('click', () => { log.replaceChildren(); });
+  document.querySelectorAll('[data-device]').forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-device]').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    document.getElementById('device').classList.toggle('mobile', btn.dataset.device === 'mobile');
+    // Ширина кадра меняет медиазапрос виджета: на узком экране опрос открывается шторкой
+    show(current);
+  }));
+</script>
+</body>
+</html>
