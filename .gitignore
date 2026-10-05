@@ -5,3 +5,4 @@ widget/dist/
 *.iml
 .vscode/
 .DS_Store
+.vite/
