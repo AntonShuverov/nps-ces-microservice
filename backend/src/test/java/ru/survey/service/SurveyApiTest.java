@@ -49,7 +49,7 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void requiresClientHeader() throws Exception {
-        mvc.perform(get("/api/v1/surveys/active").param("flowStep", "loan_issued"))
+        mvc.perform(get("/api/v1/surveys/active").param("flowStep", "loan_repaid"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
@@ -61,9 +61,9 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void returnsSurveyConfigurationWithSteps() throws Exception {
-        active(CLIENT, "loan_issued")
+        active(CLIENT, "loan_repaid")
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value("nps_ces_loan_issued"))
+                .andExpect(jsonPath("$.code").value("nps_ces_loan_repaid"))
                 .andExpect(jsonPath("$.title").value("Пройдите опрос"))
                 .andExpect(jsonPath("$.steps", hasSize(2)))
                 .andExpect(jsonPath("$.steps[0].step").value(1))
@@ -82,8 +82,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void fullFlowCompletesImpressionAndStoresTypedValues() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", "loan-42");
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", "loan-42");
 
         saveStep(CLIENT, impressionId, 1, Map.of(
                 questionId(survey, "nps"), 5,
@@ -119,46 +119,46 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void showsOncePerDayAndAgainOnNextDayEvenAfterAnswer() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
         saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 10)).andExpect(status().isOk());
         saveStep(CLIENT, impressionId, 2, Map.of(questionId(survey, "ces"), 5)).andExpect(status().isOk());
 
         clock.advance(Duration.ofHours(5)); // 14:00 МСК того же дня
-        active(CLIENT, "loan_issued").andExpect(status().isNoContent());
-        active(OTHER_CLIENT, "loan_issued").andExpect(status().isOk());
+        active(CLIENT, "loan_repaid").andExpect(status().isNoContent());
+        active(OTHER_CLIENT, "loan_repaid").andExpect(status().isOk());
 
         clock.set(java.time.Instant.parse("2026-10-05T21:00:00Z")); // 00:00 МСК следующего дня
-        active(CLIENT, "loan_issued").andExpect(status().isOk());
+        active(CLIENT, "loan_repaid").andExpect(status().isOk());
     }
 
     @Test
     void differentSurveysOnSameDayAreIndependent() throws Exception {
         JsonNode ces = activeSurvey(CLIENT, "application_submitted");
         createImpression(CLIENT, ces, "application_submitted", null);
-        active(CLIENT, "loan_issued").andExpect(status().isOk());
+        active(CLIENT, "loan_repaid").andExpect(status().isOk());
     }
 
     @Test
     void secondImpressionOnSameDayIsRejected() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        createImpression(CLIENT, survey, "loan_issued", null);
-        postImpression(CLIENT, survey.get("surveyId").asLong(), "loan_issued")
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        createImpression(CLIENT, survey, "loan_repaid", null);
+        postImpression(CLIENT, survey.get("surveyId").asLong(), "loan_repaid")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NOT_ELIGIBLE"));
     }
 
     @Test
     void impressionForSurveyNotTriggeredByStepIsRejected() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        postImpression(CLIENT, survey.get("surveyId").asLong(), "loan_repaid")
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        postImpression(CLIENT, survey.get("surveyId").asLong(), "loan_issued")
                 .andExpect(status().isConflict());
     }
 
     @Test
     void closingKeepsAnsweredStepsAndBlocksFurtherAnswers() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
         saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 8)).andExpect(status().isOk());
 
         close(CLIENT, impressionId, 2).andExpect(status().isNoContent());
@@ -177,8 +177,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void closingCompletedImpressionChangesNothing() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
-        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
+        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
         saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 4))
                 .andExpect(jsonPath("$.completed").value(true));
 
@@ -190,8 +190,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void resubmittingStepOverwritesAnswers() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
         saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 2)).andExpect(status().isOk());
         saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "nps"), 6)).andExpect(status().isOk());
 
@@ -202,8 +202,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void validatesAnswers() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
         long nps = questionId(survey, "nps");
         long ces = questionId(survey, "ces");
 
@@ -228,8 +228,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void impressionOfAnotherClientIsNotAccessible() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
 
         saveStep(OTHER_CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 5))
                 .andExpect(status().isNotFound());
@@ -281,8 +281,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void questionsWithAnswersCannotBeChanged() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
-        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
+        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
         long ces = questionId(survey, "ces");
         saveStep(CLIENT, impressionId, 1, Map.of(ces, 4)).andExpect(status().isOk());
 
@@ -293,8 +293,8 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void commentIsSavedOnlyWhenScoreIsLow() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        JsonNode survey = activeSurvey(CLIENT, "loan_repaid");
+        String impressionId = createImpression(CLIENT, survey, "loan_repaid", null);
         long nps = questionId(survey, "nps");
         long comment = questionId(survey, "nps_comment");
 

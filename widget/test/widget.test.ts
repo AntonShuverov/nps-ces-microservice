@@ -6,7 +6,7 @@ import type { ActiveSurvey } from '../src/types';
 // Как в макете: шаг 1 — NPS, шаг 2 — CES смайликами, комментарий только при низкой оценке
 const SURVEY: ActiveSurvey = {
   surveyId: 2,
-  code: 'nps_ces_loan_issued',
+  code: 'nps_ces_loan_repaid',
   title: 'Пройдите опрос',
   steps: [
     {
