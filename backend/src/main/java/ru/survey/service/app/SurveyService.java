@@ -2,12 +2,15 @@ package ru.survey.service.app;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
@@ -34,6 +37,7 @@ import ru.survey.service.repository.SurveyImpressionRepository;
 import ru.survey.service.repository.SurveyQuestionRepository;
 import ru.survey.service.rules.AnswerValidator;
 import ru.survey.service.rules.AnswerValidator.InvalidAnswerException;
+import ru.survey.service.rules.VisibilityRule;
 
 /** Операции API (docs/survey-service.md, п. 7). В логи пишутся только ID, без текстов ответов. */
 @Service
@@ -47,18 +51,20 @@ public class SurveyService {
     private final SurveyAnswerRepository answers;
     private final ClientLockRepository clientLock;
     private final AnswerValidator answerValidator;
+    private final VisibilityRule visibilityRule;
     private final MeterRegistry meters;
     private final Clock clock;
 
     public SurveyService(EligibilityChecker eligibility, SurveyQuestionRepository questions,
             SurveyImpressionRepository impressions, SurveyAnswerRepository answers, ClientLockRepository clientLock,
-            AnswerValidator answerValidator, MeterRegistry meters, Clock clock) {
+            AnswerValidator answerValidator, VisibilityRule visibilityRule, MeterRegistry meters, Clock clock) {
         this.eligibility = eligibility;
         this.questions = questions;
         this.impressions = impressions;
         this.answers = answers;
         this.clientLock = clientLock;
         this.answerValidator = answerValidator;
+        this.visibilityRule = visibilityRule;
         this.meters = meters;
         this.clock = clock;
     }
@@ -104,11 +110,11 @@ public class SurveyService {
             throw new AnswersValidationException(Map.of("step", "В опросе нет шага " + step));
         }
 
-        Map<Long, AnswerValue> values = validateAnswers(stepQuestions, input);
-
-        Instant now = clock.instant();
         Map<Long, SurveyAnswer> existing = answers.findByImpressionId(impressionId).stream()
                 .collect(Collectors.toMap(SurveyAnswer::getQuestionId, Function.identity()));
+        Map<Long, AnswerValue> values = validateAnswers(surveyQuestions, stepQuestions, existing, input);
+
+        Instant now = clock.instant();
         for (SurveyQuestion question : stepQuestions.values()) {
             AnswerValue value = values.get(question.getId());
             SurveyAnswer answer = existing.get(question.getId());
@@ -146,10 +152,16 @@ public class SurveyService {
         meters.counter("survey.impressions.closed").increment();
     }
 
-    private Map<Long, AnswerValue> validateAnswers(Map<Long, SurveyQuestion> stepQuestions,
+    /**
+     * Проверяет ответы шага. Вопросы, скрытые условием showIf (например, комментарий при высокой оценке),
+     * не сохраняются и не обязательны, даже если фронт прислал на них ответ.
+     */
+    private Map<Long, AnswerValue> validateAnswers(List<SurveyQuestion> surveyQuestions,
+            Map<Long, SurveyQuestion> stepQuestions, Map<Long, SurveyAnswer> existing,
             List<SaveStepRequest.Answer> input) {
         Map<String, String> errors = new TreeMap<>();
         Map<Long, AnswerValue> values = new HashMap<>();
+        Set<Long> seen = new HashSet<>();
         for (SaveStepRequest.Answer answer : input) {
             SurveyQuestion question = stepQuestions.get(answer.questionId());
             String key = String.valueOf(answer.questionId());
@@ -157,7 +169,7 @@ public class SurveyService {
                 errors.put(key, "Вопрос не относится к этому шагу опроса");
                 continue;
             }
-            if (values.containsKey(question.getId())) {
+            if (!seen.add(question.getId())) {
                 errors.put(key, "Повторный ответ на вопрос");
                 continue;
             }
@@ -167,8 +179,24 @@ public class SurveyService {
                 errors.put(key, e.getMessage());
             }
         }
+
+        Map<String, BigDecimal> numericAnswers = new HashMap<>();
+        for (SurveyQuestion question : surveyQuestions) {
+            BigDecimal number = stepQuestions.containsKey(question.getId())
+                    ? Optional.ofNullable(values.get(question.getId())).map(AnswerValue::number).orElse(null)
+                    : Optional.ofNullable(existing.get(question.getId())).map(SurveyAnswer::getValueNumber).orElse(null);
+            if (number != null) {
+                numericAnswers.put(question.getCode(), number);
+            }
+        }
+
         for (SurveyQuestion question : stepQuestions.values()) {
             String key = String.valueOf(question.getId());
+            if (!visibilityRule.isVisible(question, numericAnswers)) {
+                values.remove(question.getId());
+                errors.remove(key);
+                continue;
+            }
             if (question.isRequired() && !values.containsKey(question.getId()) && !errors.containsKey(key)) {
                 errors.put(key, "Обязательный вопрос");
             }

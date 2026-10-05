@@ -3,22 +3,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSurveys, resetSurveyVisit, showSurvey } from '../src/index';
 import type { ActiveSurvey } from '../src/types';
 
+// Как в макете: шаг 1 — NPS, шаг 2 — CES смайликами, комментарий только при низкой оценке
 const SURVEY: ActiveSurvey = {
   surveyId: 2,
-  code: 'ces_nps_after_loan_issued',
+  code: 'nps_ces_loan_issued',
   title: 'Пройдите опрос',
   steps: [
     {
       step: 1,
       questions: [
-        { id: 10, code: 'ces', type: 'SCALE', text: 'Насколько легко?', required: true, settings: { min: 1, max: 7 } },
+        { id: 10, code: 'nps', type: 'SCALE', text: 'Порекомендуете?', required: true, settings: { min: 0, max: 10 } },
+        {
+          id: 11, code: 'nps_comment', type: 'TEXT', text: 'Посоветуйте, что можно сделать лучше', required: false,
+          settings: { maxLength: 100, showIf: { question: 'nps', op: 'lte', value: 6 } },
+        },
       ],
     },
     {
       step: 2,
       questions: [
-        { id: 11, code: 'nps', type: 'SCALE', text: 'Порекомендуете?', required: true, settings: { min: 0, max: 10 } },
-        { id: 12, code: 'nps_comment', type: 'TEXT', text: 'Комментарий', required: false, settings: { maxLength: 100 } },
+        { id: 12, code: 'ces', type: 'SCALE', text: 'Насколько легко?', required: true, settings: { min: 1, max: 5, view: 'emoji' } },
+        {
+          id: 13, code: 'ces_comment', type: 'TEXT', text: 'С какими трудностями вы столкнулись?', required: false,
+          settings: { maxLength: 100, showIf: { question: 'ces', op: 'lte', value: 3 } },
+        },
       ],
     },
   ],
@@ -62,6 +70,18 @@ function scaleButton(value: string): HTMLButtonElement {
   return [...root()!.querySelectorAll<HTMLButtonElement>('.sw-scale-item')].find((b) => b.textContent === value)!;
 }
 
+function emojiButton(value: number): HTMLButtonElement {
+  return root()!.querySelectorAll<HTMLButtonElement>('.sw-emoji')[value - 1];
+}
+
+function question(code: string): HTMLElement {
+  return root()!.querySelector<HTMLElement>(`[data-code="${code}"]`)!;
+}
+
+function actionsHidden(): boolean {
+  return root()!.querySelector<HTMLElement>('.sw-actions')!.hidden === true;
+}
+
 function submitButton(): HTMLButtonElement {
   return root()!.querySelector<HTMLButtonElement>('.sw-submit')!;
 }
@@ -84,49 +104,74 @@ afterEach(() => {
 });
 
 describe('showSurvey', () => {
-  it('walks through steps, sends typed answers and shows thank-you screen', async () => {
+  it('walks through steps as in design, sends typed answers and shows thank-you screen', async () => {
     await showSurvey('loan_issued', { eventObjectId: 'loan-42' });
 
     expect(root()!.querySelector('.sw-title')!.textContent).toBe('Пройдите опрос');
     expect(root()!.querySelector('.sw-progress')!.textContent).toBe('1/2');
-    expect(root()!.querySelectorAll('.sw-scale-item')).toHaveLength(7);
+    expect(root()!.querySelectorAll('.sw-scale-item')).toHaveLength(11);
     expect(calls[1]).toMatchObject({
       method: 'POST',
       url: '/api/v1/surveys/impressions',
       body: { surveyId: 2, flowStep: 'loan_issued', eventObjectId: 'loan-42' },
     });
 
-    expect(submitButton().disabled).toBe(true);
-    scaleButton('6').click();
-    expect(submitButton().disabled).toBe(false);
+    // До выбора оценки кнопки нет, комментарий скрыт
+    expect(actionsHidden()).toBe(true);
+    expect(question('nps_comment').hidden).toBe(true);
+
+    // Высокая оценка: кнопка появилась, комментария нет
+    scaleButton('9').click();
+    expect(actionsHidden()).toBe(false);
+    expect(question('nps_comment').hidden).toBe(true);
     submitButton().click();
 
     await waitFor(() => root()!.querySelector('.sw-progress')?.textContent === '2/2');
     expect(calls[2]).toMatchObject({
       method: 'PUT',
       url: '/api/v1/surveys/impressions/imp-1/steps/1',
-      body: { answers: [{ questionId: 10, value: 6 }] },
+      body: { answers: [{ questionId: 10, value: 9 }] },
     });
-    expect(root()!.querySelectorAll('.sw-scale-item')).toHaveLength(11);
+    expect(root()!.querySelectorAll('.sw-emoji')).toHaveLength(5);
+    expect(root()!.querySelectorAll('.sw-emoji')[0].textContent).toBe('😭');
 
-    scaleButton('9').click();
-    const textarea = root()!.querySelector('textarea')!;
-    textarea.value = 'Отлично';
+    // Низкий CES: появляется поле «С какими трудностями…»
+    emojiButton(2).click();
+    expect(question('ces_comment').hidden).toBe(false);
+    const textarea = question('ces_comment').querySelector('textarea')!;
+    textarea.value = 'Не прошел платеж';
     textarea.dispatchEvent(new Event('input'));
     submitButton().click();
 
     await waitFor(() => root()!.querySelector('.sw-thanks'));
-    expect(calls[3].body).toEqual({ answers: [{ questionId: 11, value: 9 }, { questionId: 12, value: 'Отлично' }] });
+    expect(calls[3].body).toEqual({ answers: [{ questionId: 12, value: 2 }, { questionId: 13, value: 'Не прошел платеж' }] });
+    expect(root()!.querySelector('.sw-thanks-text')!.textContent).toBe('Спасибо, что помогаете становиться лучше!');
 
-    root()!.querySelector<HTMLButtonElement>('.sw-close')!.click();
+    root()!.querySelector<HTMLButtonElement>('.sw-thanks .sw-submit')!.click();
     await flush();
     expect(root()).toBeNull();
     expect(calls.some((c) => c.url.endsWith('/close'))).toBe(false);
   });
 
+  it('shows comment for low NPS and hides it again for high one', async () => {
+    await showSurvey('loan_issued');
+    scaleButton('4').click();
+    expect(question('nps_comment').hidden).toBe(false);
+    const textarea = question('nps_comment').querySelector('textarea')!;
+    textarea.value = 'Долго';
+    textarea.dispatchEvent(new Event('input'));
+
+    scaleButton('8').click();
+    expect(question('nps_comment').hidden).toBe(true);
+    submitButton().click();
+
+    await waitFor(() => calls.find((c) => c.url.includes('/steps/1')));
+    expect(calls.find((c) => c.url.includes('/steps/1'))!.body).toEqual({ answers: [{ questionId: 10, value: 8 }] });
+  });
+
   it('reports the step where the popup was closed', async () => {
     await showSurvey('loan_issued');
-    scaleButton('5').click();
+    scaleButton('7').click();
     submitButton().click();
     await waitFor(() => root()!.querySelector('.sw-progress')?.textContent === '2/2');
 

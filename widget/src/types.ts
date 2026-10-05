@@ -15,11 +15,23 @@ export interface ChoiceOption {
   label: string;
 }
 
+/** Условный показ: вопрос виден, только если ответ на другой вопрос подходит (например, комментарий при NPS ≤ 6). */
+export interface ShowIf {
+  question: string;
+  op: 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in';
+  value: number | number[];
+}
+
 export interface QuestionSettings {
   min?: number;
   max?: number;
   minLabel?: string;
   maxLabel?: string;
+  /** emoji — шкала смайликами (CES по макету). */
+  view?: 'emoji';
+  /** Смайлики по одному на значение шкалы. Для шкалы из 5 значений есть набор по умолчанию. */
+  icons?: string[];
+  showIf?: ShowIf;
   placeholder?: string;
   maxLength?: number;
   options?: ChoiceOption[];
@@ -59,11 +71,12 @@ export interface StepResult {
 
 export interface Texts {
   submit: string;
+  /** Подпись крестика для скринридеров. */
   close: string;
-  thankYouTitle: string;
-  thankYouText: string;
+  /** Кнопка на экране благодарности. */
+  closeButton: string;
+  thankYou: string;
   sendError: string;
-  charactersLeft: (left: number) => string;
 }
 
 export interface SurveyWidgetOptions {

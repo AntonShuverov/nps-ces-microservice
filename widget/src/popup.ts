@@ -1,5 +1,5 @@
 import type { SurveyApi } from './api';
-import { createQuestion, h, type QuestionComponent } from './questions';
+import { createQuestion, h, isVisible, type QuestionComponent } from './questions';
 import { styles } from './styles';
 import type { ActiveSurvey, AnswerValue, Texts } from './types';
 
@@ -11,7 +11,8 @@ export interface PopupOptions {
 }
 
 /**
- * Поп-ап опроса (docs/survey-service.md, п. 8.2): шаги, индикатор «1/2», крестик,
+ * Поп-ап опроса по макетам Figma «NPS CES» (docs/survey-service.md, п. 8.2): шаги, индикатор «1/2», крестик,
+ * кнопка «Отправить» появляется после выбора оценки, комментарий — только при низкой оценке (settings.showIf),
  * блокировка кнопки до ответа сервиса, одна автоматическая повторная попытка, экран благодарности.
  */
 export class SurveyPopup {
@@ -20,6 +21,8 @@ export class SurveyPopup {
   private readonly popup: HTMLElement;
   private impression: Promise<string> | null = null;
   private stepIndex = 0;
+  /** Ответы на пройденные шаги по коду вопроса: нужны для условий showIf на следующих шагах. */
+  private readonly answeredByCode = new Map<string, AnswerValue>();
   private finished = false;
   private closed = false;
   private autoCloseTimer: ReturnType<typeof setTimeout> | undefined;
@@ -46,7 +49,8 @@ export class SurveyPopup {
       'aria-modal': 'true',
       'aria-labelledby': 'sw-title',
     });
-    overlay.append(this.popup);
+    // «Ручка» нижней шторки, видна только на мобильной версии
+    overlay.append(h('div', { class: 'sw-handle', 'aria-hidden': 'true' }), this.popup);
     this.root.append(overlay);
 
     if (options.closeOnOutsideClick) {
@@ -98,35 +102,53 @@ export class SurveyPopup {
   }
 
   private renderHeader(): HTMLElement {
-    const header = h('div', { class: 'sw-header' }, h('h2', { class: 'sw-title', id: 'sw-title' }, this.survey.title));
+    const header = h('div', { class: 'sw-header' });
+    const progress = h('span', { class: 'sw-progress' });
     if (!this.finished && this.survey.steps.length > 1) {
-      header.append(h('span', { class: 'sw-progress' }, `${this.stepIndex + 1}/${this.survey.steps.length}`));
+      progress.textContent = `${this.stepIndex + 1}/${this.survey.steps.length}`;
     }
-    const close = h('button', { type: 'button', class: 'sw-close', 'aria-label': this.options.texts.close }, '×');
+    const title = h('h2', { class: 'sw-title', id: 'sw-title' }, this.finished ? '' : this.survey.title);
+    const close = h('button', { type: 'button', class: 'sw-close', 'aria-label': this.options.texts.close });
+    close.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">'
+      + '<path d="M3 3l14 14M17 3L3 17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
     close.addEventListener('click', () => this.close());
-    return h('div', {}, header, close);
+    header.append(progress, title, close);
+    return header;
   }
 
   private renderStep(): void {
     const step = this.survey.steps[this.stepIndex];
-    const submit = h('button', { type: 'submit', class: 'sw-submit', disabled: '' }, this.options.texts.submit);
+    const submit = h('button', { type: 'submit', class: 'sw-submit' }, this.options.texts.submit);
     const error = h('p', { class: 'sw-error', role: 'alert', hidden: '' });
+    const actions = h('div', { class: 'sw-actions' }, error, submit);
 
-    const updateSubmit = () => {
-      submit.disabled = !components.every((c) => !c.question.required || c.getValue() !== undefined);
+    const visible = (c: QuestionComponent) => !c.element.hidden;
+    const update = () => {
+      const answers = new Map(this.answeredByCode);
+      for (const c of components) {
+        c.element.hidden = !isVisible(c.question.settings.showIf, answers);
+        const value = c.getValue();
+        if (visible(c) && value !== undefined) {
+          answers.set(c.question.code, value);
+        }
+      }
+      // По макету кнопка появляется, только когда заполнены обязательные вопросы шага
+      const ready = components.every((c) => !visible(c) || !c.question.required || c.getValue() !== undefined);
+      actions.hidden = !ready;
+      submit.disabled = !ready;
     };
     const components: QuestionComponent[] = step.questions.map((q) =>
-      createQuestion(q, this.options.texts, () => {
+      createQuestion(q, () => {
         error.hidden = true;
-        updateSubmit();
+        update();
       }),
     );
-    updateSubmit();
+    update();
 
-    const form = h('form', { novalidate: '' }, ...components.map((c) => c.element), h('div', { class: 'sw-actions' }, error, submit));
+    const form = h('form', { novalidate: '' }, ...components.map((c) => c.element), actions);
     form.addEventListener('submit', (event) => {
       event.preventDefault();
-      void this.submitStep(step.step, components, submit, error, updateSubmit);
+      void this.submitStep(step.step, components.filter(visible), submit, error, update);
     });
 
     this.popup.replaceChildren(this.renderHeader(), form);
@@ -158,6 +180,12 @@ export class SurveyPopup {
       if (this.closed) {
         return;
       }
+      for (const component of components) {
+        const value = answers.get(component.question.id);
+        if (value !== undefined) {
+          this.answeredByCode.set(component.question.code, value);
+        }
+      }
       if (result.completed || this.stepIndex + 1 >= this.survey.steps.length) {
         this.showThanks();
       } else {
@@ -185,12 +213,15 @@ export class SurveyPopup {
 
   private showThanks(): void {
     this.finished = true;
+    const closeButton = h('button', { type: 'button', class: 'sw-submit' }, this.options.texts.closeButton);
+    closeButton.addEventListener('click', () => this.dismiss());
     const thanks = h(
       'div',
       { class: 'sw-thanks' },
-      h('p', { class: 'sw-thanks-title' }, this.options.texts.thankYouTitle),
-      h('p', { class: 'sw-thanks-text' }, this.options.texts.thankYouText),
+      h('p', { class: 'sw-thanks-text' }, this.options.texts.thankYou),
+      h('div', { class: 'sw-actions' }, closeButton),
     );
+    this.popup.classList.add('sw-finished');
     this.popup.replaceChildren(this.renderHeader(), thanks);
     if (this.options.thankYouAutoCloseMs > 0) {
       this.autoCloseTimer = setTimeout(() => this.dismiss(), this.options.thankYouAutoCloseMs);

@@ -93,6 +93,29 @@ class SurveyConfigValidatorTest {
                 .containsExactly("дата начала не раньше даты окончания");
     }
 
+    @Test
+    void validatesEmojiScaleAndConditions() throws Exception {
+        List<SurveyQuestion> valid = List.of(
+                question("ces", 1, 1, QuestionType.SCALE, "{\"min\": 1, \"max\": 5, \"view\": \"emoji\"}"),
+                question("thanks", 1, 2, QuestionType.TEXT, "{\"showIf\": {\"question\": \"ces\", \"op\": \"gte\", \"value\": 4}}"),
+                question("comment", 1, 3, QuestionType.TEXT, "{\"showIf\": {\"question\": \"ces\", \"op\": \"lte\", \"value\": 3}}"));
+        assertThat(validator.validate(survey(), valid, List.of(trigger("[]")))).isEmpty();
+
+        assertThat(validator.validate(survey(), List.of(
+                question("ces", 1, 1, QuestionType.SCALE, "{\"min\": 1, \"max\": 7, \"view\": \"emoji\"}"),
+                question("a", 1, 2, QuestionType.TEXT, "{\"showIf\": {\"question\": \"unknown\", \"op\": \"lte\", \"value\": 3}}"),
+                question("b", 1, 3, QuestionType.TEXT, "{\"showIf\": {\"question\": \"a\", \"op\": \"lte\", \"value\": 3}}"),
+                question("c", 1, 4, QuestionType.TEXT, "{\"showIf\": {\"question\": \"ces\", \"op\": \"like\", \"value\": 3}}"),
+                question("d", 1, 0, QuestionType.TEXT, "{\"showIf\": {\"question\": \"ces\", \"op\": \"lte\", \"value\": 3}}")),
+                List.of(trigger("[]"))))
+                .containsExactly(
+                        "вопрос ces: для шкалы смайликами не из 5 значений нужен список icons",
+                        "вопрос a: showIf ссылается на неизвестный вопрос 'unknown'",
+                        "вопрос b: showIf работает только по шкале или звездам",
+                        "вопрос c: неизвестный оператор showIf 'like'",
+                        "вопрос d: showIf должен ссылаться на вопрос выше этого");
+    }
+
     private Survey survey() {
         Survey survey = BeanUtils.instantiateClass(Survey.class);
         ReflectionTestUtils.setField(survey, "id", 1L);
@@ -101,9 +124,15 @@ class SurveyConfigValidatorTest {
     }
 
     private SurveyQuestion question(String code, int step, QuestionType type, String settings) throws Exception {
+        return question(code, step, 1, type, settings);
+    }
+
+    private SurveyQuestion question(String code, int step, int position, QuestionType type, String settings)
+            throws Exception {
         SurveyQuestion question = BeanUtils.instantiateClass(SurveyQuestion.class);
         ReflectionTestUtils.setField(question, "code", code);
         ReflectionTestUtils.setField(question, "step", step);
+        ReflectionTestUtils.setField(question, "position", position);
         ReflectionTestUtils.setField(question, "type", type);
         ReflectionTestUtils.setField(question, "text", "Вопрос");
         ReflectionTestUtils.setField(question, "settings", json.readTree(settings));
