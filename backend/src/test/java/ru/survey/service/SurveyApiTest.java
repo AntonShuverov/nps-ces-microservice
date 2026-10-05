@@ -60,6 +60,13 @@ class SurveyApiTest extends IntegrationTestBase {
     }
 
     @Test
+    void draftSurveysAreNotShown() throws Exception {
+        // На старте опрос только на погашении займа, остальные примеры — черновики
+        active(CLIENT, "loan_issued").andExpect(status().isNoContent());
+        active(CLIENT, "application_submitted").andExpect(status().isNoContent());
+    }
+
+    @Test
     void returnsSurveyConfigurationWithSteps() throws Exception {
         active(CLIENT, "loan_repaid")
                 .andExpect(status().isOk())
@@ -134,8 +141,9 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void differentSurveysOnSameDayAreIndependent() throws Exception {
-        JsonNode ces = activeSurvey(CLIENT, "application_submitted");
-        createImpression(CLIENT, ces, "application_submitted", null);
+        createTestSurvey("test_other", 1, 100, "[]");
+        JsonNode other = activeSurvey(CLIENT, "test_step");
+        createImpression(CLIENT, other, "test_step", null);
         active(CLIENT, "loan_repaid").andExpect(status().isOk());
     }
 
@@ -177,8 +185,9 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void closingCompletedImpressionChangesNothing() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        createTestSurvey("test_single_step", 1, 100, "[]");
+        JsonNode survey = activeSurvey(CLIENT, "test_step");
+        String impressionId = createImpression(CLIENT, survey, "test_step", null);
         saveStep(CLIENT, impressionId, 1, Map.of(questionId(survey, "ces"), 4))
                 .andExpect(jsonPath("$.completed").value(true));
 
@@ -281,8 +290,9 @@ class SurveyApiTest extends IntegrationTestBase {
 
     @Test
     void questionsWithAnswersCannotBeChanged() throws Exception {
-        JsonNode survey = activeSurvey(CLIENT, "loan_issued");
-        String impressionId = createImpression(CLIENT, survey, "loan_issued", null);
+        createTestSurvey("test_protected", 1, 100, "[]");
+        JsonNode survey = activeSurvey(CLIENT, "test_step");
+        String impressionId = createImpression(CLIENT, survey, "test_step", null);
         long ces = questionId(survey, "ces");
         saveStep(CLIENT, impressionId, 1, Map.of(ces, 4)).andExpect(status().isOk());
 

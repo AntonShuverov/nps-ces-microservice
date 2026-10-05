@@ -249,6 +249,21 @@ describe('showSurvey', () => {
     await waitFor(() => root()!.querySelector('.sw-progress')?.textContent === '2/2');
   });
 
+  it('closes on click outside the popup by default', async () => {
+    await showSurvey('loan_issued');
+    root()!.querySelector<HTMLElement>('.sw-overlay')!.click();
+    await waitFor(() => calls.find((c) => c.url.endsWith('/close')));
+    expect(root()).toBeNull();
+  });
+
+  it('keeps popup open on outside click when disabled', async () => {
+    initSurveys({ delayMs: 0, closeOnOutsideClick: false });
+    await showSurvey('loan_issued');
+    root()!.querySelector<HTMLElement>('.sw-overlay')!.click();
+    await flush();
+    expect(root()).not.toBeNull();
+  });
+
   it('closes on Esc when enabled', async () => {
     initSurveys({ delayMs: 0, closeOnEsc: true });
     await showSurvey('loan_issued');
