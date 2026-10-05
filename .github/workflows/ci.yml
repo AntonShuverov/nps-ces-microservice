@@ -23,7 +23,7 @@ jobs:
           java-version: '21'
           cache: maven
       # PostgreSQL для интеграционных тестов поднимается через Testcontainers
-      - run: mvn -B verify
+      - run: mvn -B -ntp verify
 
   widget:
     name: Widget tests and build
